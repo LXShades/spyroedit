@@ -74,16 +74,18 @@ struct NmMobySync {
 };
 #pragma pack(pop)
 
-extern int8 network_initialised;
-
 extern int8 netstate;
 
-extern int mainport;
-
-extern int playerId;
+extern int netPort;
 
 extern Player players[10];
-extern int player_count;
+extern int numPlayers;
+extern int localPlayerId;
+
+extern bool isNetworkInitialised;
+
+extern const int netPortMin = 18541;
+extern const int netPortMax = 18545;
 
 void Host();
 void Join();

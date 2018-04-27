@@ -9,76 +9,69 @@
 
 #define MAXPLAYERS 10
 
-int8 network_initialised = 0;
-
 int8 netstate = NETSTATE_NONE;
 
-SOCKET mainsock;
-int mainport;
+bool isNetworkInitialised = false;
 
-int playerId = 0;
+SOCKET netSocket;
+int netPort;
 
 Player players[MAXPLAYERS];
-int player_count = 1;
+int numPlayers = 1;
+int localPlayerId = 0;
 
-#define PIECESIZE (0x00200000 / 128)
+const int netPortMin = 18541;
+const int netPortMax = 18545;
 
-void StartupNetwork()
-{
+const int memdumpChunkSize = (0x00200000 / 128);
+
+void StartupNetwork() {
+	// Initialise WinSock
 	WSADATA dummy;
 	int ret = WSAStartup(MAKEWORD(2, 2), &dummy);
 
-	if (ret != 0)
-	{
+	if (ret != 0) {
 		MessageBox(NULL, "Error starting up WinSock.", "", MB_OK);
 		return;
 	}
 
-	mainsock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	// Create the socket
+	netSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (mainsock == INVALID_SOCKET)
-	{
+	if (netSocket == INVALID_SOCKET) {
 		MessageBox(NULL, "Error creating socket.", "", MB_OK);
 		return;
 	}
 
-	for (int port = 2012; port <= 2015; port ++)
-	{
-		sockaddr_in local_addr;
+	// Try to bind a UDP port between 2012 and 2015
+	sockaddr_in localAddress = {0};
+	bool hasConnected = false;
 
-		local_addr.sin_family = AF_INET;
-		local_addr.sin_port = htons(port);
-		local_addr.sin_addr.S_un.S_un_b.s_b1 = 0;
-		local_addr.sin_addr.S_un.S_un_b.s_b2 = 0;
-		local_addr.sin_addr.S_un.S_un_b.s_b3 = 0;
-		local_addr.sin_addr.S_un.S_un_b.s_b4 = 0;
+	localAddress.sin_family = AF_INET;
 
-		for (int i = 0; i < 8; i ++) local_addr.sin_zero[i] = 0;
+	for (int port = netPortMin; port <= netPortMax; ++port) {
+		localAddress.sin_port = htons(port);
 
-		ret = bind(mainsock, (const sockaddr*) &local_addr, sizeof (local_addr));
-
-		if (ret != SOCKET_ERROR)
-		{
-			mainport = port;
+		// Try to bind
+		if (bind(netSocket, (const sockaddr*) &localAddress, sizeof (localAddress)) != SOCKET_ERROR) {
+			netPort = port;
+			hasConnected = true;
 			break;
 		}
 	}
 
-	if (ret == SOCKET_ERROR)
-	{
+	if (!hasConnected) {
 		MessageBox(NULL, "Error binding socket to any port 2012 - 2015.", "", MB_OK);
 		return;
 	}
 
-	network_initialised = 1;
+	// We're online
+	isNetworkInitialised = true;
 }
 
-void NetworkLoop()
-{
-	if (! network_initialised || ! netstate)
+void NetworkLoop() {
+	if (!isNetworkInitialised || !netstate)
 		return;
-
-	Address addr;
 
 	// Send self player update to [all players]
 	NmPlayerUpdate updateMsg;
@@ -95,27 +88,24 @@ void NetworkLoop()
 			if (mobyModels[0]->anims[anims[i]].address)
 				*numFrames[i] = mobyModels[0]->anims[anims[i]]->numFrames;
 		}
-	} else
+	} else {
 		updateMsg.nextAnimNumFrames = updateMsg.prevAnimNumFrames = updateMsg.nextHeadAnimNumFrames = updateMsg.prevHeadAnimNumFrames = 0;
+	}
 
 	// Then send to all connected players
-	for (int i = 0; i < player_count; i ++)
-	{
-		if (i != playerId)
+	for (int i = 0; i < numPlayers; ++i) {
+		if (i != localPlayerId)
 			SendTo(&updateMsg, sizeof (NmPlayerUpdate), &players[i].addr);
 	}
 
 	// Do object check (flags)
 	static int lastattackflags[1000];
-	for (int i = 0; i < 1000; i ++)
-	{
+	for (int i = 0; i < 1000; ++i) {
 		if (mobys[i].state == -1)
 			break;
 
-		if (mobys[i].attack_flags != lastattackflags[i])
-		{
-			if (! mobys)
-			{
+		if (mobys[i].attack_flags != lastattackflags[i]) {
+			if (!mobys) {
 				MessageBox(NULL, "No mobys!", "", MB_OK);
 				break;
 			}
@@ -127,9 +117,8 @@ void NetworkLoop()
 			msg.objId = i;
 			msg.flags = mobys[i].attack_flags;
 
-			for (int j = 0; j < player_count; j ++)
-			{
-				if (j != playerId)
+			for (int j = 0; j < numPlayers; ++j) {
+				if (j != localPlayerId)
 					SendTo(&msg, sizeof (NmAttackFlag), &players[j].addr);
 			}
 
@@ -140,46 +129,43 @@ void NetworkLoop()
 	ReceiveMessages();
 }
 
-void ReceiveMessages()
-{
+void ReceiveMessages() {
 	Address addr;
 	char buffer[512];
 	int size;
 
-	while ((size = RecvFrom(buffer, 512, &addr)) > 0)
-	{
+	while ((size = RecvFrom(buffer, 512, &addr)) > 0) {
 		int player_id;
 		int message_id = buffer[0];
 		static int send_piece = 0;
 
-		if (size <= 0)
-			continue;
+		// Find who sent the message
+		for (player_id = 0; player_id < numPlayers; ++player_id) {
+			if (!memcmp(&addr, &players[player_id].addr, sizeof (Address)))
+				break;
+		}
 
-		for (player_id = 0; player_id < player_count; player_id ++) {if (! memcmp(&addr, &players[player_id].addr, sizeof (Address))) break;}
-
-		if (player_id == player_count && message_id != NM_JOIN) // You haven't been accepted yet!
+		if (player_id == numPlayers && message_id != NM_JOIN) // You haven't been accepted yet!
 			continue;
 
 		uint32* uintmem = (uint32*) memory;
 		static GPUSnapshot tempGpuSnapshot;
 		static Savestate* playerSavestates[MAXPLAYERS];
 
-		switch (message_id)
-		{
-			case NM_JOIN: // JOIN MSG
-			{
+		switch (message_id) {
+			// Player is trying to join
+			case NM_JOIN: {
 				if (netstate != NETSTATE_SERVER)
-					break;
+					break; // lol I'm not the server dude
 
-				if (player_count >= 10)
+				if (numPlayers >= 10)
 					break; // This town ain't big enough for 10 of us. Seriously dude.
 
 				if (strncmp(buffer, "\x00YODUDE", 8))
 					break; // You're outta our league, man.
 
 				bool alreadyHere = false;
-				for (int i = 0; i < player_count; i++)
-				{
+				for (int i = 0; i < numPlayers; i++) {
 					if (!memcmp(&players[i].addr, &addr, sizeof (Address)))
 						alreadyHere = true;
 				}
@@ -187,36 +173,37 @@ void ReceiveMessages()
 				if (alreadyHere)
 					continue; // you're already here
 
+				// Send the accept message
 				char send[8] = "\x00HEYBRO";
 
 				SendTo(send, 8, &addr);
 
-				memcpy(&players[player_count].addr, &addr, sizeof (Address));
-				memcpy(&players[player_count].spyro, (void*) ((uint32) memory + 0x00073624), 0x20); // To avoid crashes.
-				player_count ++;
+				players[numPlayers].addr = addr;
+				players[numPlayers].spyro = spyro ? *spyro : Spyro{0};
+				++numPlayers;
 
 				if (playerSavestates[player_id] == NULL)
 					playerSavestates[player_id] = (Savestate*) malloc(sizeof (Savestate));
 
+				// Setup the savestate to presumably send to the player...? What did this even do
 				GetSnapshot(&tempGpuSnapshot);
-				SetSnapshot(&tempGpuSnapshot);
 
 				memcpy(playerSavestates[player_id]->memory, memory, 0x00200000);
 				playerSavestates[player_id]->snapshot = tempGpuSnapshot;
 
 				break;
 			}
-			case NM_PLAYERUPDATE: // UPDATE MSG
-			{
+			// Player is updating their position, animation, etc
+			case NM_PLAYERUPDATE: {
 				NmPlayerUpdate* updateMsg = (NmPlayerUpdate*) buffer;
 
-				if (player_id == playerId)
+				if (player_id == localPlayerId)
 					break;
 
 				players[player_id].spyro = updateMsg->spyroData;
 				players[player_id].powers = updateMsg->powers;
 
-				// Convert animation data
+				// Convert animation state between PAL/NTSC
 				if (gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
 					uint8 anims[4] = {updateMsg->spyroData.main_anim.prevanim, updateMsg->spyroData.main_anim.nextanim, 
 									  updateMsg->spyroData.head_anim.prevanim, updateMsg->spyroData.head_anim.nextanim};
@@ -238,22 +225,20 @@ void ReceiveMessages()
 				}
 				break;
 			}
-			case NM_SAVESTATESTATUS: /// SAVESTATE
-			{
+			// Player is downloading a savestate and wants more
+			case NM_SAVESTATESTATUS:  {
 				NmSavestateStatus* stateStatus = (NmSavestateStatus*) buffer;
-				bool starting = true;
+				bool starting = true; // starting what??
 
 				int sendNext = -1;
-				for (int i = 0; i < 5; i ++)
-				{
+				for (int numStatesSent = 0; numStatesSent < 5; ++numStatesSent) {
 					static NmSavestateData stateData;
-					int lastSendNext = sendNext;
+					int lastSendNext = sendNext; // wtf??
 
-					for (int j = sendNext + 1; j < 13*32; j ++)
-					{
-						if (j * 8192 > sizeof (Savestate))
-						{
+					for (int j = sendNext + 1; j < 13*32; j ++) {
+						if (j * 8192 > sizeof (Savestate)) {
 							j = 0; // Wrap around
+
 							if (lastSendNext == -1)
 								goto BreakAll;
 						}
@@ -261,8 +246,8 @@ void ReceiveMessages()
 						if (j == lastSendNext)
 							goto BreakAll;
 
-						if (! (stateStatus->dataFlags[j / 32] & 1 << (j & 31))) // Receiver doesn't have this part yet; send this part!
-						{
+						if (!(stateStatus->dataFlags[j / 32] & 1 << (j & 31))) {
+							// Receiver doesn't have this part yet; send this part!
 							sendNext = j;
 							break;
 						}
@@ -271,6 +256,7 @@ void ReceiveMessages()
 					if (sendNext == -1)
 						break;
 
+					// Copy savestate chunk data and send it
 					int cpySize = sizeof (Savestate) - sendNext * 8192;
 
 					if (cpySize > 8192)
@@ -287,15 +273,14 @@ void ReceiveMessages()
 					break;
 				}
 
+				// Update transfer status message
 				char statusMsg[256] = "Transferring TO: \n";
 
-				for (int i = 0; i < 13; i ++)
-				{
+				for (int i = 0; i < 13; i ++) {
 					char tempStr[12];
 					int bitsConfirmed = 0;
 
-					for (int j = 0; j < 32; j ++)
-					{
+					for (int j = 0; j < 32; j ++) {
 						if (stateStatus->dataFlags[i] & (1 << j))
 							bitsConfirmed ++;
 					}
@@ -303,7 +288,7 @@ void ReceiveMessages()
 					sprintf(tempStr, "%i%% ", bitsConfirmed * 100 / 32);
 					strcat(statusMsg, tempStr);
 
-					if (! (i & 3) && i > 0)
+					if (!(i & 3) && i > 0)
 						strcat(statusMsg, "\n");
 				}
 
@@ -311,18 +296,15 @@ void ReceiveMessages()
 
 				break;
 			}
-			case NM_ATTACKFLAGS:
-			{
+			case NM_ATTACKFLAGS: {
 				NmAttackFlag* msg = (NmAttackFlag*) buffer;
 
 				// Hacky for loop to prevent affecting mobys beyond the total count
-				for (int i = 0; i < 500; i ++)
-				{
+				for (int i = 0; i < 500; i ++) {
 					if (mobys[i].state == -1)
 						break;
 
-					if (i == msg->objId)
-					{
+					if (i == msg->objId) {
 						mobys[i].attack_flags = msg->flags;
 						break;
 					}
@@ -330,8 +312,7 @@ void ReceiveMessages()
 
 				break;
 			}
-			case NM_MOBYSYNC:
-			{
+			case NM_MOBYSYNC: {
 				NmMobySync* msg = (NmMobySync*) buffer;
 
 				if (*level != 17)
@@ -354,8 +335,7 @@ void ReceiveMessages()
 	}
 }
 
-int SendTo(const void* buffer, int buffer_length, Address* addr)
-{
+int SendTo(const void* buffer, int buffer_length, Address* addr) {
 	struct sockaddr_in temp;
 	u_long value = 0;
 
@@ -366,24 +346,22 @@ int SendTo(const void* buffer, int buffer_length, Address* addr)
 	temp.sin_addr.S_un.S_un_b.s_b3 = addr->ip[2];
 	temp.sin_addr.S_un.S_un_b.s_b4 = addr->ip[3];
 
-	ioctlsocket(mainsock, FIONBIO, &value);
+	ioctlsocket(netSocket, FIONBIO, &value);
 
-	return sendto(mainsock, (const char*) buffer, buffer_length, 0, (sockaddr*) &temp, sizeof (temp));
+	return sendto(netSocket, (const char*) buffer, buffer_length, 0, (sockaddr*) &temp, sizeof (temp));
 }
 
-int RecvFrom(void* buffer, int buffer_length, Address* addr)
-{
+int RecvFrom(void* buffer, int buffer_length, Address* addr) {
 	struct sockaddr_in temp;
 	int ret;
 	int temp_size = sizeof (temp);
 	u_long value = 1;
 
-	ioctlsocket(mainsock, FIONBIO, &value);
+	ioctlsocket(netSocket, FIONBIO, &value);
 
-	ret = recvfrom(mainsock, (char*) buffer, buffer_length, 0, (sockaddr*) &temp, &temp_size);
+	ret = recvfrom(netSocket, (char*) buffer, buffer_length, 0, (sockaddr*) &temp, &temp_size);
 
-	if (addr != NULL && ret > 0)
-	{
+	if (addr != NULL && ret > 0) {
 		addr->port = ntohs(temp.sin_port);
 		addr->ip[0] = temp.sin_addr.S_un.S_un_b.s_b1;
 		addr->ip[1] = temp.sin_addr.S_un.S_un_b.s_b2;
@@ -394,9 +372,8 @@ int RecvFrom(void* buffer, int buffer_length, Address* addr)
 	return ret;
 }
 
-void Host()
-{
-	if (! network_initialised)
+void Host() {
+	if (!isNetworkInitialised)
 	{
 		MessageBox(hwndEditor, "Cannot host (network system was not successfully initialised).", 
 				   "We'd apologise but we simply don't have the time for any of that.", MB_OK);
@@ -404,8 +381,8 @@ void Host()
 	}
 
 	netstate = NETSTATE_SERVER;
-	player_count = 1;
-	playerId = 0;
+	numPlayers = 1;
+	localPlayerId = 0;
 
 	EnableWindow(edit_ip, 0);
 	EnableWindow(button_host, 0);
@@ -415,10 +392,8 @@ void Host()
 extern long (CALLBACK* route_GPUdmaChain)(unsigned long *,unsigned long);
 extern long last_argtwo;
 
-void Join()
-{
-	if (! network_initialised)
-	{
+void Join() {
+	if (!isNetworkInitialised) {
 		MessageBox(hwndEditor, "Cannot join (network system was not successfully initialised).", 
 				   "We'd apologise but we simply don't have the time for any of that.", MB_OK);
 		return;
@@ -431,10 +406,8 @@ void Join()
 
 	SendMessage(edit_ip, WM_GETTEXT, (WPARAM) 16, (LPARAM) ip);
 
-	for (int i = 0; i < 16; i ++)
-	{
-		if (ip[i] == '.' || ! ip[i])
-		{
+	for (int i = 0; i < 16; i ++) {
+		if (ip[i] == '.' || !ip[i]) {
 			int byte = atoi(&ip[last_octect]);
 
 			if (byte > 255 || byte < 0)
@@ -444,13 +417,12 @@ void Join()
 
 			last_octect = i + 1;
 
-			if (! ip[i])
+			if (!ip[i])
 				break;
 		}
 	}
 
-	if (octects != 4)
-	{
+	if (octects != 4) {
 		MessageBox(hwndEditor, "Invalid IP.", "We're helping you with this message. No, really.", MB_OK);
 		return;
 	}
@@ -469,14 +441,11 @@ void Join()
 	char recv_buffer[8];
 	bool joined = 0;
 
-	while (! joined)
-	{
+	while (!joined) {
 		Sleep(10); // Give the CPU a rest.
 
-		while (RecvFrom(recv_buffer, 8, &recv_addr) > 0)
-		{
-			if (! strncmp(recv_buffer, "\x00HEYBRO", 8))
-			{
+		while (RecvFrom(recv_buffer, 8, &recv_addr) > 0) {
+			if (!strncmp(recv_buffer, "\x00HEYBRO", 8)) {
 				memcpy(&players[0].addr, &recv_addr, sizeof (Address)); // Just in case of a port inconsistency.
 
 				joined = 1;
@@ -488,8 +457,7 @@ void Join()
 			break;
 	}
 
-	if (! joined)
-	{
+	if (!joined) {
 		MessageBox(hwndEditor, "Sorry - connection was unsuccessful.", "Failer, thy name is Failure", MB_OK);
 		return;
 	}
@@ -498,8 +466,8 @@ void Join()
 	memcpy(&players[0].spyro, (void*) ((uint32) memory + 0x00073624), sizeof (Spyro)); // To avoid crashes.
 	players[0].lastmessagetime = GetTickCount();
 
-	playerId = 1;
-	player_count = 2;
+	localPlayerId = 1;
+	numPlayers = 2;
 
 	netstate = NETSTATE_CLIENT;
 
@@ -520,17 +488,14 @@ void Join()
 
 	SendTo(&stateStatus, sizeof (stateStatus), &players[0].addr);
 
-	while (! gotAll)
-	{
+	while (!gotAll) {
 		bool send_update = 0;
 
-		while (RecvFrom(&stateData, sizeof (stateData), NULL) > 0)
-		{
+		while (RecvFrom(&stateData, sizeof (stateData), NULL) > 0) {
 			if (stateData.msgId != NM_SAVESTATEDATA) continue;
 
 			// RAM copy
-			if (stateData.dataId < 256)
-			{
+			if (stateData.dataId < 256) {
 				/*int cpySize = 8192;
 
 				if ((stateData.dataId + 1) * 8192 > sizeof (Savestate))
@@ -548,8 +513,7 @@ void Join()
 			send_update = 1;
 		}
 
-		if (GetTickCount() >= last_update + 1000)
-		{
+		if (GetTickCount() >= last_update + 1000) {
 			send_update = 1;
 			last_update = GetTickCount();
 		}
@@ -562,13 +526,11 @@ void Join()
 
 		char statusMsg[256] = "Transferring FROM: \n";
 
-		for (int i = 0; i < 13; i ++)
-		{
+		for (int i = 0; i < 13; i ++) {
 			char tempStr[12];
 			int bitsConfirmed = 0;
 
-			for (int j = 0; j < 32; j ++)
-			{
+			for (int j = 0; j < 32; j ++) {
 				if (stateStatus.dataFlags[i] & (1 << j))
 					bitsConfirmed ++;
 			}
@@ -576,7 +538,7 @@ void Join()
 			sprintf(tempStr, "%i%% ", bitsConfirmed * 100 / 32);
 			strcat(statusMsg, tempStr);
 
-			if (! (i & 3) && i > 0)
+			if (!(i & 3) && i > 0)
 				strcat(statusMsg, "\n");
 		}
 
@@ -584,8 +546,7 @@ void Join()
 		
 		// Are we finished?
 		int numBits = 0;
-		for (int i = 0; i < 13*32; i ++)
-		{
+		for (int i = 0; i < 13*32; i ++) {
 			if (stateStatus.dataFlags[i / 32] & 1 << (i & 31))
 				numBits ++;
 		}

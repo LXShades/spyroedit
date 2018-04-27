@@ -33,7 +33,7 @@ void UpdateKeys()
 	{
 		bool keyIsDown = (bool) (GetKeyState(i) >> 4);
 
-		if (! keyDown[i] && keyIsDown)
+		if (!keyDown[i] && keyIsDown)
 			keyPressed[i] = true;
 		else
 			keyPressed[i] = false;

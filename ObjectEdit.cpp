@@ -33,16 +33,14 @@ int recpos;
 int recbuffersize;
 uint32 StringToHex(const char* string);
 
-void Spyro1BetaTestFunction()
-{
-	if (! memory)
+void Spyro1BetaTestFunction() {
+	if (!memory)
 		return;
 
 	uint32* uintmem = (uint32*) memory;
 	uint16* shortmem = (uint16*) memory;
 
-	if (HIWORD(GetKeyState('R')))
-	{
+	if (HIWORD(GetKeyState('R'))) {
 		recording = 1;
 
 		if (Reset_Recompiler) Reset_Recompiler();
@@ -50,10 +48,8 @@ void Spyro1BetaTestFunction()
 		MessageBox(NULL, "Recording!", "", MB_OK);
 	}
 
-	if (HIWORD(GetKeyState('S')))
-	{
-		if (recording)
-		{
+	if (HIWORD(GetKeyState('S'))) {
+		if (recording) {
 			FILE* f = fopen(".\\RECORD.rec", "wb");
 
 			fwrite(recbuffer, 1, recpos * 42, f);
@@ -75,8 +71,7 @@ void Spyro1BetaTestFunction()
 		MessageBox(NULL, "Stopped.", "", MB_OK);
 	}
 
-	if (HIWORD(GetKeyState('P')) && ! recording)
-	{
+	if (HIWORD(GetKeyState('P')) && !recording) {
 		FILE* f = fopen(".\\RECORD.rec", "rb");
 		int fsize;
 
@@ -97,10 +92,8 @@ void Spyro1BetaTestFunction()
 		MessageBox(NULL, "Playing!", "", MB_OK);
 	}
 
-	if (recording)
-	{
-		if (recbuffersize < (recpos + 1) * 42)
-		{
+	if (recording) {
+		if (recbuffersize < (recpos + 1) * 42) {
 			recbuffersize += 65535;
 			recbuffer = (char*) realloc(recbuffer, recbuffersize);
 		}
@@ -112,16 +105,13 @@ void Spyro1BetaTestFunction()
 		recpos ++;
 	}
 
-	if (playing)
-	{
-		if (recpos * 42 < recbuffersize)
-		{
+	if (playing) {
+		if (recpos * 42 < recbuffersize) {
 			memcpy(&shortmem[0x00077512 / 2], &recbuffer[(recpos + 1) * 42], 2);
 			memcpy(&shortmem[0x000778C8 / 2], &recbuffer[recpos * 42 + 2], 36);
 			memcpy(&shortmem[0x000779E4 / 2], &recbuffer[recpos * 42 + 38], 2);
-		}
-		else // We've reached the end.
-		{
+		} else {
+			// End of recording has been reached
 			free(recbuffer);
 			recbuffer = NULL;
 			recbuffersize = 0;
@@ -140,8 +130,7 @@ void CREATEVAR(char* string, int x, int y, int type, int offset);
 
 VarDef vardefs[50];
 
-void CreateObjectPage()
-{
+void CreateObjectPage() {
 	CREATESTATIC("Object ID:", 10, LINE(0));
 
 	CREATEVAR("X:", 10, LINE(2), TYPE_INT, 0x0C);
@@ -222,12 +211,10 @@ void ObjectEditorLoop()
 	if (SendMessage(checkbox_autoupdate, BM_GETCHECK, 0, 0) == BST_CHECKED && GetObjectID() >= 0)
 		UpdateVars();
 
-	if (SendMessage(checkbox_drag, BM_GETCHECK, 0, 0) == BST_CHECKED && GetObjectID() >= 0)
-	{
+	if (SendMessage(checkbox_drag, BM_GETCHECK, 0, 0) == BST_CHECKED && GetObjectID() >= 0) {
 		int id = GetObjectID();
 
-		if (id != lastobjid || ! lastchecked)
-		{
+		if (id != lastobjid || !lastchecked) {
 			reldragx = mobys[id].x - spyro->x;
 			reldragy = mobys[id].y - spyro->y;
 			reldragz = mobys[id].z - spyro->z;
@@ -239,9 +226,9 @@ void ObjectEditorLoop()
 
 		lastobjid = id;
 		lastchecked = 1;
-	}
-	else
+	} else {
 		lastchecked = 0;
+	}
 
 	// Show animcount
 	char temp[40];
@@ -262,16 +249,14 @@ void ObjectEditorLoop()
 	SendMessage(anim_count, WM_SETTEXT, 0, (LPARAM) temp);
 
 	// Fix anim issue.
-	if (GetObjectID() >= 0) // Redundant check due to the above return;, but keep just in case
-	{
+	if (GetObjectID() >= 0) { // Redundant check due to the above return;, but keep just in case
 		return; // Causes crashes sometimes?
 		if (mobys[GetObjectID()].animspeed < 0x30)
 			mobys[GetObjectID()].animspeed = 0x30;
 	}
 }
 
-void UpdateVars()
-{
+void UpdateVars() {
 	int id = GetObjectID();
 
 	if (id < 0)
@@ -280,9 +265,8 @@ void UpdateVars()
 	if (!mobys)
 		return;
 
-	for (int i = 0; i < 50; i ++)
-	{
-		if (! vardefs[i].type)
+	for (int i = 0; i < 50; i ++) {
+		if (!vardefs[i].type)
 			continue;
 
 		if (SendMessage(checkbox_autoupdate, BM_GETCHECK, 0, 0) == BST_CHECKED && 
@@ -295,8 +279,7 @@ void UpdateVars()
 		char* convert = "%i";
 		char* hexconvert;
 
-		switch (vardefs[i].type)
-		{
+		switch (vardefs[i].type) {
 			case TYPE_UINT:
 			case TYPE_INT:
 				hexconvert = "%08X"; break;
@@ -311,8 +294,7 @@ void UpdateVars()
 		if (vardefs[i].hex)
 			convert = hexconvert;
 
-		switch (vardefs[i].type)
-		{
+		switch (vardefs[i].type) {
 			case TYPE_UINT:     sprintf(write_string, convert[1] == 'i' ? "%u" : convert, *(unsigned int*) addr); break;
 			case TYPE_INT:      sprintf(write_string, convert, *(int*) addr); break;
 			case TYPE_USHORT:   sprintf(write_string, convert, *(unsigned short*) addr); break;
@@ -326,8 +308,7 @@ void UpdateVars()
 	}
 }
 
-void UpdateVarHexToggle(int id)
-{
+void UpdateVarHexToggle(int id) {
 	char in[100];
 	char out[100];
 	bool last_hex = vardefs[id].hex; // Just in case.
@@ -335,16 +316,14 @@ void UpdateVarHexToggle(int id)
 	vardefs[id].hex = (SendMessage(vardefs[id].hex_toggle, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
 	// Convert the value if this has been changed from non-hex to hex.
-	if (vardefs[id].hex && ! last_hex)
-	{
+	if (vardefs[id].hex && !last_hex) {
 		unsigned __int64 value = 0x00000000;
 
 		SendMessage(vardefs[id].edit_hwnd, WM_GETTEXT, 100, (LPARAM) in);
 
 		value = atoi(in);
 
-		switch (vardefs[id].type)
-		{
+		switch (vardefs[id].type) {
 			case TYPE_UINT:
 			case TYPE_INT:
 				sprintf(out, "%08X", value & 0xFFFFFFFF); break;
@@ -359,8 +338,7 @@ void UpdateVarHexToggle(int id)
 		SendMessage(vardefs[id].edit_hwnd, WM_SETTEXT, 9, (LPARAM) out);
 	}
 
-	if (! vardefs[id].hex && last_hex)
-	{
+	if (!vardefs[id].hex && last_hex) {
 		unsigned __int64 value = 0x00000000;
 
 		SendMessage(vardefs[id].edit_hwnd, WM_GETTEXT, 100, (LPARAM) in);
@@ -377,8 +355,7 @@ void UpdateVarHexToggle(int id)
 	}
 }
 
-void SetVars()
-{
+void SetVars() {
 	int id = GetObjectID();
 
 	if (!mobys || id < 0)
@@ -386,9 +363,8 @@ void SetVars()
 
 	char string[500];
 
-	for (int i = 0; i < 50; i ++)
-	{
-		if (! vardefs[i].type)
+	for (int i = 0; i < 50; i ++) {
+		if (!vardefs[i].type)
 			continue;
 
 		SendMessage(vardefs[i].edit_hwnd, WM_GETTEXT, 500, (LPARAM) string);
@@ -400,8 +376,7 @@ void SetVars()
 
 		uintptr addr = (uintptr) &mobys[id] + vardefs[i].offset;
 
-		switch (vardefs[i].type)
-		{
+		switch (vardefs[i].type) {
 			case TYPE_UINT:
 				*(unsigned int*) addr = number;
 				break;
@@ -424,8 +399,7 @@ void SetVars()
 	}
 }
 
-int GetObjectID()
-{
+int GetObjectID() {
 	int id;
 	char text[500];
 
@@ -439,19 +413,17 @@ int GetObjectID()
 	return id;
 }
 
-int NumObjects()
-{
-	if (! mobys)
-		return -1;
+int NumObjects() {
+	if (!mobys)
+		return 0;
 
-	int num = 0;
-
-	for (num = 0; num < 600; num ++)
-	{
-		if (mobys[num].state == -1) break;
+	for (int num = 0; num < 600; num ++) {
+		if (mobys[num].state == -1) {
+			return num;
+		}
 	}
 
-	return num + 1;
+	return 0;
 }
 
 uint32 StringToHex(const char* string) {

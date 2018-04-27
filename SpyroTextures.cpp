@@ -1,4 +1,6 @@
 #include "SpyroData.h"
+#include "SpyroTextures.h"
+#include "Vram.h"
 #include "Main.h"
 
 #include <Windows.h>
@@ -48,8 +50,6 @@ Matrix tileMatrices[8] = {
 	0, -1
 };
 
-GPUSnapshot vramSs;
-
 int palettes[1000]; // Byte positions of palettes
 int paletteTypes[1000];
 int numPalettes = 0;
@@ -62,9 +62,13 @@ void SaveTexturesAsSingle();
 void LoadObjectTextures();
 void UpdateObjTexMap();
 
-bool LoadBmp32(BmpInfo* bmpOut, const char* bmpName);
-bool SaveBmp(BmpInfo* info, const char* bmpName);
-void FreeBmp(BmpInfo* info);
+TexDef* textures;
+int32* numTextures;
+
+LqTexDef* lqTextures;
+HqTexDef* hqTextures;
+
+uint32 texEditFlags = TEF_GENERATEPALETTES | TEF_SHUFFLEPALETTES | TEF_AUTOLQ;
 
 void SaveTextures() {
 	if (texEditFlags & TEF_SEPARATE)
@@ -79,10 +83,8 @@ void SaveTexturesAsMultiple() {
 	if (!textures && !lqTextures)
 		return;
 
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
+	uint8* vram8 = vram.GetVram8();
 	char lqFolderName[MAX_PATH], hqFolderName[MAX_PATH];
 
 	GetLevelFilename(lqFolderName, SEF_TEXTUREFOLDERLQ, true);
@@ -110,8 +112,7 @@ void SaveTexturesAsMultiple() {
 					goto SkipPalette; // Already done palette
 			}
 
-			int paletteByteStart = curHq[pal].palette * 32;
-			uint16* palette = &vram16[paletteByteStart / 2];
+			uint16* palette = vram.GetHqPalette(curHq[pal].palette);
 			int numTilesDone = 0;
 
 			// Read palette data
@@ -155,12 +156,11 @@ void SaveTexturesAsMultiple() {
 		}
 
 		// Write low-res texture
+		uint16* palette = vram.GetLqPalette((curLq[0].palettex << 8) | curLq[0].palettey);
+
 		bmpInfo.bitsPerColour = 4;
 		bmpInfo.width = 32;
 		bmpInfo.height = 32;
-
-		int paletteByteStart = curLq[0].palettex * 16 * 2 + curLq[0].palettey * 4 * 2048;
-		uint16* palette = &vram16[paletteByteStart / 2];
 
 		for (int j = 0; j < 16; j++) {
 			bmpInfo.palette[j].rgbRed = GETR16(palette[j]);
@@ -195,12 +195,9 @@ void SaveTexturesAsSingle() {
 	if (!textures && !hqTextures)
 		return;
 
-	// Get VRAM snapshot
-	GetSnapshot(&vramSs);
-
 	// Setup vars for faster save
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
+	uint8* vram8 = vram.GetVram8();
 
 	// Get textures filename
 	char filename[MAX_PATH];
@@ -423,9 +420,8 @@ void LoadTexturesIntoMemory() {
 		return;
 
 	// Setup VRAM
-	GetSnapshot(&vramSs);
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = (uint16*) vram.GetVram16();
+	uint8* vram8 = (uint8*) vram.GetVram8();
 
 	// Limit the number of textures
 	int numTexs = *numTextures;
@@ -757,269 +753,13 @@ void LoadTexturesIntoMemory() {
 			}
 		}
 	}
-
-	SetSnapshot(&vramSs);
 }
 
-/*void LoadTexturesIntoMemory() {
-	if (!textures && (!lqTextures || !hqTextures))
-		return;
-
-	// Setup VRAM
-	GetSnapshot(&vramSs);
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
-
-	// Limit the number of textures
-	int numTexs = *numTextures;
-
-	if (numTexs > numTexCaches)
-		numTexs = numTexCaches;
-
-	// Make new palettes
-	uint16 uniquePaletteIds[512];
-	uint32 avgColourPalette[512];
-	bool8 paletteIgnored[512] = {0};
-	int numModdablePalettes = 0;
-	int numTotalPalettes = 0;
-
-	// Count number of unique palettes
-	for (int i = 0; i < numTexs; i++) {
-		TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
-
-		for (int tile = 0; tile < 4; tile++) {
-			int palette = curHq[tile].palette;
-			int foundPalette;
-
-			for (foundPalette = 0; foundPalette < numTotalPalettes; foundPalette++) {
-				if (uniquePaletteIds[foundPalette] == palette)
-					break;
-			}
-
-			if (foundPalette == numTotalPalettes)
-				uniquePaletteIds[numTotalPalettes++] = palette;
-
-			if (texCaches[i].ignore)
-				paletteIgnored[foundPalette] = true;
-		}
-	}
-
-	// Count number of unique palettes that aren't being ignored
-	for (int i = 0; i < numTotalPalettes; i++) {
-		if (!paletteIgnored[i])
-			numModdablePalettes++;
-	}
-
-	// Collect all colours in the textures and build a level-wide, median-colour palette
-	uint32* tempColours = (uint32*) malloc(numTexs * 64 * 64 * 4);
-	int numTempColours = 0;
-	
-	if ((texEditFlags & TEF_SHUFFLEPALETTES) && (texEditFlags & TEF_GENERATEPALETTES)) {
-		uint32 completedTiles[2048];
-		int numCompletedTiles = 0;
-
-		// Collect all tiles. I tried adding code to prevent tiles from being re-used, but that seemed to make uglier palettes
-		for (int i = 0; i < numTexs; i++) {
-			TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
-
-			for (int tile = 0; tile < 4; tile++) {
-				for (int y = 0; y < 32; y++) {
-					for (int x = 0; x < 32; x++)
-						tempColours[numTempColours++] = texCaches[i].tiles[tile].bitmap[y * 32 + x];
-				}
-			}
-		}
-
-		// Make the palette
-		MakePaletteFromColours(avgColourPalette, numModdablePalettes, tempColours, numTempColours);
-
-		// Scan through all textures, and their tiles, and determine their new colour palettes
-		for (int i = 0; i < numTexs; i++) {
-			TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
-
-			if (texCaches[i].ignore)
-				continue;
-
-			for (int tile = 0; tile < 4; tile++) {
-				int incidence[256] = {0};
-
-				for (int y = 0; y < 32; y++) {
-					for (int x = 0; x < 32; x++) {
-						uint32 colour = texCaches[i].tiles[tile].bitmap[y * 32 + x], clrR = GETR32(colour), clrG = GETG32(colour), clrB = GETB32(colour);
-						int palId = 0, palClosestDist = 256 * 256 * 256;
-
-						for (int j = 0; j < numTotalPalettes; j++) {
-							if (paletteIgnored[j])
-								continue;
-
-							int rDelta = GETR32(avgColourPalette[j]) - clrR, gDelta = GETG32(avgColourPalette[j]) - clrG, bDelta = GETB32(avgColourPalette[j]) - clrB;
-							int dist = rDelta * rDelta + gDelta * gDelta + bDelta * bDelta;
-
-							if (dist < palClosestDist) {
-								palId = j;
-								palClosestDist = dist;
-							}
-						}
-
-						incidence[palId]++;
-					}
-				}
-
-				// Count the most common palette
-				int palId = 0, maxNumIncidences = 0;
-				for (int j = 0; j < numTotalPalettes; j++) {
-					if (incidence[j] > maxNumIncidences) {
-						maxNumIncidences = incidence[j];
-						palId = j;
-					}
-				}
-
-				curHq[tile].palette = uniquePaletteIds[palId];
-			}
-		}
-	}
-
-	// Build the palettes themselves and reassign the colours of each tile using it!
-	for (int pal = 0; pal < numTotalPalettes; pal++) {
-		if (paletteIgnored[pal])
-			continue;
-
-		uint32 paletteColours[256];
-		int numTempColours = 0;
-		uint16* palette = &vram16[uniquePaletteIds[pal] * 32 / 2];
-
-		// Collect colours for shared palette
-		if (texEditFlags & TEF_GENERATEPALETTES) {
-			for (int j = 0; j < numTexs; j++) {
-				TexHq* curHq = textures ? textures[j].hqData : hqTextures[j].hqData;
-
-				for (int tile = 0; tile < 4; tile++) {
-					if (curHq[tile].palette != uniquePaletteIds[pal])
-						continue;
-
-					for (int y = 0; y < 32; y++) {
-						for (int x = 0; x < 32; x++) {
-							uint32 colour = texCaches[j].tiles[tile].bitmap[y * 32 + x];
-
-							for (int k = 0; k < numTempColours; k++) {
-								if (tempColours[k] == colour)
-									goto Skip2;
-							}
-
-							tempColours[numTempColours++] = colour;
-							Skip2:;
-						}
-					}
-				}
-			}
-		
-			// Build palette
-			MakePaletteFromColours(paletteColours, 256, tempColours, numTempColours);
-
-			// Copy 32-bit palette colours to 16-bit memory
-			for (int j = 0; j < 256; j++) {
-				palette[j] = MAKECOLOR16(GETR32(paletteColours[j]), GETG32(paletteColours[j]), GETB32(paletteColours[j]));
-
-				if (palette[j] == 0x8000)
-					palette[j] = 0;
-			}
-		}
-
-		// Reassign the texture tiles with the palette
-		uint32 completedTiles[2048];
-		uint32 completedTilePalettes[2048];
-		int numCompletedTiles = 0;
-		for (int j = 0; j < numTexs; j++) {
-			TexHq* curHq = textures ? textures[j].hqData : hqTextures[j].hqData;
-
-			if (texCaches[j].ignore)
-				continue; // save some processing time
-
-			for (int tile = 0; tile < 4; tile++) {
-				uint32* bitmap = texCaches[j].tiles[tile].bitmap;
-				int vramXStart = texCaches[j].tiles[tile].minX, vramYStart = texCaches[j].tiles[tile].minY;
-				bool alreadyExists = false;
-
-				for (int c = 0; c < numCompletedTiles; c++) {
-					if (vramXStart + vramYStart * 4096 == completedTiles[c]) { // tile is shared with a tile that's already been reassigned
-						curHq[tile].palette = completedTilePalettes[c]; // just set the palette
-						alreadyExists = true;
-						break;
-					}
-				}
-
-				if (curHq[tile].palette != uniquePaletteIds[pal] || alreadyExists)
-					continue;
-
-				int orientation = curHq[tile].unknown>>4 & 7;
-				int xx = tileMatrices[orientation].xx, xy = tileMatrices[orientation].xy;
-				int yx = tileMatrices[orientation].yx, yy = tileMatrices[orientation].yy;
-				int vramYEnd = texCaches[j].tiles[tile].maxY;
-				bool movingX = (texCaches[j].tiles[tile].maxX - texCaches[j].tiles[tile].minX > 32),
-					 movingY = (texCaches[j].tiles[tile].maxY - texCaches[j].tiles[tile].minY > 32);
-
-				if (xx < 0 || xy < 0)
-					vramXStart += 31;
-				if (yx < 0 || yy < 0)
-					vramYStart += 31;
-
-				for (int y = 0; y < 32; y++) {
-					for (int x = 0; x < 32; x++) {
-						uint32 colour = bitmap[y * 32 + x], clrR = GETR32(colour), clrG = GETG32(colour), clrB = GETB32(colour);
-
-						int palId = 0, palClosestDist = 256 * 256 * 3;
-						for (int j = 0; j < 256; j++) {
-							int rDelta = GETR16(palette[j]) - clrR, gDelta = GETG16(palette[j]) - clrG, bDelta = GETB16(palette[j]) - clrB;
-							int dist = rDelta * rDelta + gDelta * gDelta + bDelta * bDelta;
-
-							if (dist < palClosestDist) {
-								palId = j;
-								palClosestDist = dist;
-							}
-						}
-
-						vram8[((x * yx + y * yy) + vramYStart) * 2048 + vramXStart + (x * xx + y * xy)] = palId;
-
-						if (movingY) {
-							if (((x * yx + y * yy) + vramYStart) + 32 <= vramYEnd)
-								vram8[((x * yx + y * yy) + vramYStart + 32) * 2048 + vramXStart + (x * xx + y * xy)] = palId;
-							if (((x * yx + y * yy) + vramYStart) + 64 <= vramYEnd)
-								vram8[((x * yx + y * yy) + vramYStart + 64) * 2048 + vramXStart + (x * xx + y * xy)] = palId;
-						}
-					}
-				}
-
-				completedTilePalettes[numCompletedTiles] = curHq[tile].palette;
-				completedTiles[numCompletedTiles] = vramXStart + vramYStart * 4096;
-				numCompletedTiles++;
-			}
-		}
-	}
-
-	if (hqTextures) {
-		for (int i = 0; i < *numTextures; i++) {
-			for (int j = 0; j < 16; j++) {
-				int tileX = (j % 4), tileY = (j / 4);
-				TexHq* sourceTile = &hqTextures[i].hqData[(tileY / 2) * 2 + (tileX / 2)];
-				int xStart = sourceTile->xmin + (sourceTile->xmax - sourceTile->xmin + 1) / 2 * (tileX & 1), xEnd = sourceTile->xmin + (sourceTile->xmax - sourceTile->xmin + 1) / 2 * ((tileX & 1) + 1) - 1;
-				int yStart = sourceTile->ymin + (sourceTile->ymax - sourceTile->ymin + 1) / 2 * (tileY & 1), yEnd = sourceTile->ymin + (sourceTile->ymax - sourceTile->ymin + 1) / 2 * ((tileY & 1) + 1) - 1;
-				hqTextures[i].hqDataClose[j].palette = sourceTile->palette;
-			}
-		}
-	}
-
-	SetSnapshot(&vramSs);
-
-	free(tempColours);
-}*/
-
 void SaveObjectTextures() {
-	GetSnapshot(&vramSs);
-
 	UpdateObjTexMap();
 
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
+	uint8* vram8 = vram.GetVram8();
 	const int vramWidth = 1024; // vram width in u16s
 	int bmpWidth = objTexMap.width, bmpHeight = objTexMap.height;
 	int bmpPitch = ((bmpWidth * 2 + 1) / 2 * 2);
@@ -1072,8 +812,6 @@ void SaveObjectTextures() {
 }
 
 void LoadObjectTextures() {
-	GetSnapshot(&vramSs);
-
 	UpdateObjTexMap();
 
 	BmpInfo bmp;
@@ -1190,18 +928,14 @@ void LoadObjectTextures() {
 
 	free(colours);
 	FreeBmp(&bmp);
-
-	SetSnapshot(&vramSs);
 }
 
 void GenerateLQTextures() {
 	if (!textures && !hqTextures)
 		return;
 	
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
+	uint8* vram8 = vram.GetVram8();
 
 	UpdatePaletteList();
 
@@ -1317,24 +1051,18 @@ void GenerateLQTextures() {
 		}
 	}
 	
-	SetSnapshot(&vramSs);
 	CompleteLQPalettes();
 }
 
-void GetAvgTexColours()
-{
-	for (int i = 0; i < MAXAVGTEXCOLOURS; i ++)
-	{
+void GetAvgTexColours() {
+	for (int i = 0; i < MAXAVGTEXCOLOURS; i ++) {
 		for (int j = 0; j < 4; j ++)
 			avgTexColours[i][j][0] = avgTexColours[i][j][1] = avgTexColours[i][j][2] = 0;
 	}
 
-	if (textures||lqTextures)
-	{
-		GetSnapshot(&vramSs);
-
-		uint16* vram16 = (uint16*) vramSs.vram;
-		uint8* vram8 = (uint8*) vramSs.vram;
+	if (textures||lqTextures) {
+		uint16* vram16 = vram.GetVram16();
+		uint8* vram8 = vram.GetVram8();
 		for (int i = 0; i < *numTextures && i < MAXAVGTEXCOLOURS; i ++)
 		{
 			TexHq* curHq = textures[i].hqData;
@@ -1367,9 +1095,8 @@ void GetAvgTexColours()
 	}
 }
 
-void UpdatePaletteList()
-{
-	if (!textures&&!hqTextures)
+void UpdatePaletteList() {
+	if (!textures && !hqTextures)
 		return;
 
 	numPalettes = 0;
@@ -1542,29 +1269,22 @@ void UpdateObjTexMap() {
 	objTexMap.height = bmpY + maxRowHeight;
 }
 
-void CompleteLQPalettes()
-{
-	GetSnapshot(&vramSs);
+void CompleteLQPalettes() {
 	UpdatePaletteList();
 
-	uint16* vram16 = (uint16*) vramSs.vram;
-	for (int i = 0; i < numPalettes; i ++)
-	{
+	uint16* vram16 = vram.GetVram16();
+	for (int i = 0; i < numPalettes; i ++) {
 		if (paletteTypes[i] != PT_LQ)
 			continue;
 
 		uint16* palette = &vram16[palettes[i] / 2];
-		for (int y = 1; y < 16; y ++)
-		{
-			for (int x = 0; x < 16; x ++)
-			{
+		for (int y = 1; y < 16; y ++) {
+			for (int x = 0; x < 16; x ++) {
 				int r = (palette[x] & 31) * 255 / 31, g = (palette[x] >> 5 & 31) * 255 / 31, b = (palette[x] >> 10 & 31) * 255 / 31;
 				palette[y * 1024 + x] = MAKECOLOR16(r + (127 - r) * y / 15, g + (127 - g) * y / 15, b + (127 - b) * y / 15);
 			}
 		}
 	}
-
-	SetSnapshot(&vramSs);
 }
 
 // BMP stuff
@@ -1678,18 +1398,20 @@ bool SaveBmp(BmpInfo* info, const char* bmpName) {
 	BITMAPINFO bi;
 	int bmpPitch = 0, paletteNum = 0;
 
+	// Decide the pitch and palette size of the bitmap
 	if (info->bitsPerColour == 4) {
 		bmpPitch = info->width / 2;
 		paletteNum = 16;
 	} else if (info->bitsPerColour == 8) {
 		bmpPitch = info->width;
 		paletteNum = 256;
-	} else if (info->bitsPerColour == 16)
+	} else if (info->bitsPerColour == 16) {
 		bmpPitch = (info->width * 2 + 1) * 2 / 2;
-	else if (info->bitsPerColour == 24)
+	} else if (info->bitsPerColour == 24) {
 		bmpPitch = (info->width + 3) * 4 / 4;
-	else
+	} else {
 		return false;
+	}
 
 	memset(&bi.bmiHeader, 0, sizeof (BITMAPINFO));
 	bi.bmiHeader.biSize = sizeof (BITMAPINFO)-4;
@@ -1723,4 +1445,385 @@ bool SaveBmp(BmpInfo* info, const char* bmpName) {
 void FreeBmp(BmpInfo* info) {
 	free(info->data32);
 	info->data32 = NULL;
+}
+
+void ColorlessMode() {
+	if (!textures&&!hqTextures)
+		return;
+
+	UpdatePaletteList();
+
+	uint16* vram16 = (uint16*) vram.GetVram16();
+	for (int i = 0; i < numPalettes; i ++) {
+		if (paletteTypes[i] == PT_HQ) {
+			uint16* palette = &vram16[palettes[i] / 2];
+
+			for (int j = 0; j < 256; j ++) {
+				int lum = 0;
+
+				if ((palette[j] & 31) > lum) lum = (palette[j] & 31);
+				if ((palette[j] >> 5 & 31) > lum) lum = (palette[j] >> 5 & 31);
+				if ((palette[j] >> 10 & 31) > lum) lum = (palette[j] >> 10 & 31);
+
+				palette[j] = lum | (lum << 5) | (lum << 10) | 0x8000;
+			}
+		} else {
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 16; j ++) {
+				uint16* clr = &palette[j];
+				int lum = 0;
+				if ((*clr & 31) > lum) lum = (*clr & 31);
+				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
+				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
+				*clr = lum | (lum << 5) | (lum << 10) | 0x8000;
+			}
+		}
+	}
+
+	CompleteLQPalettes();
+}
+
+void PinkMode() {
+	if (!textures && !hqTextures)
+		return;
+	
+	UpdatePaletteList();
+
+	uint16* vram16 = (uint16*) vramSs.vram;
+	for (int i = 0; i < numPalettes; i ++) {
+		if (paletteTypes[i] == PT_HQ) {
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 256; j ++) {
+				uint16* clr = &palette[j];
+
+				int lum = 0;
+				if ((*clr & 31) > lum) lum = (*clr & 31);
+				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
+				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
+				lum = lum * 255 / 31;
+
+				*clr = MAKECOLOR16(255, 150 + (lum * (255 - 160 - 30) / 255), 210 + (lum * (255 - 230 - 10) / 255));
+			}
+		} else {
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 16; j ++) {
+				uint16* clr = &palette[j];
+					
+				int lum = 0;
+				if ((*clr & 31) > lum) lum = (*clr & 31);
+				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
+				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
+				lum = lum * 255 / 31;
+
+				*clr = MAKECOLOR16(255, 150 + (lum * (255 - 160 - 30) / 255), 210 + (lum * (255 - 230 - 10) / 255));
+			}
+		}
+	}
+
+	CompleteLQPalettes();
+}
+
+void IndieMode() {
+	if (!sceneData || (!textures && !hqTextures))
+		return;
+
+	UpdatePaletteList();
+
+	uint16* vram16 = (uint16*) vram.GetVram16();
+	for (int i = 0; i < numPalettes; i ++) {
+		if (paletteTypes[i] == PT_HQ){
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 256; j ++)
+				palette[j] = 0xFFFF;
+		} else {
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 16; j ++)
+				palette[j] = 0xFFFF;
+		}
+	}
+
+	CompleteLQPalettes();
+
+	uint8* bytemem = (uint8*) memory;
+	for (int i = 0; i < sceneData->numSectors; i ++) {
+		SceneSectorHeader* sector = sceneData->sectors[i];
+		int lpColourStart = sector->numLpVertices;
+		int lpFaceStart = sector->numLpVertices + sector->numLpColours;
+		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
+		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
+		int hpFaceStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices + sector->numHpColours * 2;
+
+		// Set light
+		for (int j = 0; j < sector->numHpColours; j ++)
+			sector->data32[hpColourStart + j] = (((sector->data32[hpColourStart + j + sector->numHpColours])&0xFF)/2) | 
+			((((sector->data32[hpColourStart + j + sector->numHpColours])>>8&0xFF)/2)<<8) | 
+			((((sector->data32[hpColourStart + j + sector->numHpColours])>>16&0xFF)/2) << 16);
+	}
+}
+
+void CreepypastaMode() {
+	if (!textures)
+		return;
+	
+	UpdatePaletteList();
+
+	uint16* vram16 = vram.GetVram16();
+	for (int i = 0; i < numPalettes; i ++) {
+		if (paletteTypes[i] == PT_HQ) {
+			uint16* palette = &vram16[palettes[i] / 2];
+			for (int j = 0; j < 256; j ++) {
+				uint16* clr = &palette[j];
+
+				*clr = (31 - (*clr & 31)) | ((31 - (*clr >> 5 & 31)) << 5) | ((31 - (*clr >> 10 & 31)) << 10) | 0x8000;
+			}
+		} else {
+			uint16* palette = &vram16[palettes[i] / 2];
+			
+			for (int j = 0; j < 16; j ++) {
+				palette[j] = (31 - (palette[j] & 31)) | ((31 - (palette[j] >> 5 & 31)) << 5) | ((31 - (palette[j] >> 10 & 31)) << 10) | 0x8000;
+			}
+		}
+	}
+
+	CompleteLQPalettes();
+}
+
+struct ColourBox {
+	int minR, minG, minB;
+	int maxR, maxG, maxB;
+};
+
+void MakePaletteFromColours(uint32* paletteOut, int desiredPaletteSize, uint32* colours, int numColours) {
+	ColourBox boxes[256];
+	uint8* clrR = &((uint8*)colours)[0], *clrG = &((uint8*)colours)[1], *clrB = &((uint8*)colours)[2];
+	int numBoxes = 1;
+	int quadNumColours = numColours * 4;
+	uint32* coloursArrangedByR = (uint32*) malloc(numColours * 4), *coloursArrangedByG = (uint32*) malloc(numColours * 4), *coloursArrangedByB = (uint32*) malloc(numColours * 4);
+	bool hasBlack = false;
+
+	// Setup initial box
+	int startMinR = 255, startMinG = 255, startMinB = 255, startMaxR = 0, startMaxG = 0, startMaxB = 0;
+	for (int i = 0; i < quadNumColours; i += 4) {
+		if (clrR[i] < startMinR) startMinR = clrR[i]; if (clrR[i] > startMaxR) startMaxR = clrR[i];
+		if (clrG[i] < startMinG) startMinG = clrG[i]; if (clrG[i] > startMaxG) startMaxG = clrG[i];
+		if (clrB[i] < startMinB) startMinB = clrB[i]; if (clrB[i] > startMaxB) startMaxB = clrB[i];
+	}
+
+	boxes[0].minR = startMinR; boxes[0].maxR = startMaxR;
+	boxes[0].minG = startMinG; boxes[0].maxG = startMaxG;
+	boxes[0].minB = startMinB; boxes[0].maxB = startMaxB;
+
+	if (startMinR == 0 && startMinG == 0 && startMinB == 0)
+		hasBlack = true;
+
+	// Arrange colours on all axes
+	uint8* axes[] = {clrR, clrG, clrB};
+	uint32* arrangedAxes[] = {coloursArrangedByR, coloursArrangedByG, coloursArrangedByB};
+	for (int a = 0; a < 3; a++) {
+		uint8* axisClrs = axes[a];
+		uint32* arrangedAxis = arrangedAxes[a];
+
+		int curArranged = 0;
+
+		for (int j = 0; j < 32; j++) { /* hack: speedup by arranging with 5-bit precision instead of 8-bit */
+			for (int k = 0; k < quadNumColours; k += 4) {
+				if (axisClrs[k] >> 3 == j)
+					arrangedAxis[curArranged++] = colours[k / 4];
+			}
+		}
+	}
+
+	// Make boxes
+	uint8* arrangedColours = (uint8*)malloc(numColours);
+	while (numBoxes < desiredPaletteSize) {
+		for (int i = 0; i < numBoxes; i ++) {
+			ColourBox* curBox = &boxes[i];
+			ColourBox* nextBox = &boxes[numBoxes + i];
+
+			// Find the longest axis
+			int axisId = 0;
+			if (curBox->maxG - curBox->minG > curBox->maxR - curBox->minR) axisId = 1;
+			if (curBox->maxB - curBox->minB > curBox->maxG - curBox->minG) axisId = 2;
+			
+			// Setup axis variables (arrAxis = the colour channel of the longest axis for this box, from the colours arranged by the longest axis for this box)
+			uint32* arrangedAxes[] = {coloursArrangedByR, coloursArrangedByG, coloursArrangedByB};
+			uint32* arrangedAxis = arrangedAxes[axisId];
+			uint8* arrAxis = &((uint8*) arrangedAxis)[axisId];
+			uint8* arrR = &((uint8*) arrangedAxis)[0], *arrG = &((uint8*) arrangedAxis)[1], *arrB = &((uint8*) arrangedAxis)[2];
+
+			uint8 minR = curBox->minR, maxR = curBox->maxR, minG = curBox->minG, maxG = curBox->maxG, minB = curBox->minB, maxB = curBox->maxB;
+
+			// Get colours arranged along the longest axis
+			int numArrangedColours = 0;
+			
+			for (int k = 0; k < quadNumColours; k += 4) {
+				if (arrR[k] < minR || arrR[k] > maxR || arrG[k] < minG || arrG[k] > maxG || arrB[k] < minB || arrB[k] > maxB) // Colour is outside of box!
+					continue;
+
+				arrangedColours[numArrangedColours ++] = arrAxis[k];
+			}
+
+			// Get the median of the colours along this axis
+			int median = 0;
+
+			if (numArrangedColours > 0) {
+				if (!(numArrangedColours & 1))
+					median = (arrangedColours[numArrangedColours / 2 - 1] + arrangedColours[numArrangedColours / 2]) / 2;
+				else
+					median = arrangedColours[numArrangedColours / 2];
+			}
+
+			// Split this box into two by the median. nextBox will be on the greater side of the median; curBox on the smaller side			
+			*nextBox = *curBox;
+			switch (axisId) {
+				case 0:
+					curBox->maxR = median;
+					nextBox->minR = median;
+					break;
+				case 1:
+					curBox->maxG = median;
+					nextBox->minG = median;
+					break;
+				case 2:
+					curBox->maxB = median;
+					nextBox->minB = median;
+					break;
+			}
+
+			// Recalculate the boundaries of both boxes
+			ColourBox* temp[2] = {curBox, nextBox};
+			for (int j = 0; j < 2; j ++) {
+				ColourBox* box = temp[j];
+				int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
+
+				for (int k = 0; k < quadNumColours; k += 4) {
+					if (clrR[k] > box->maxR || clrR[k] < box->minR || clrG[k] > box->maxG || clrG[k] < box->minG || clrB[k] > box->maxB || clrB[k] < box->minB)
+						continue;
+
+					if (clrR[k] < minR) minR = clrR[k]; if (clrR[k] > maxR) maxR = clrR[k];
+					if (clrG[k] < minG) minG = clrG[k]; if (clrG[k] > maxG) maxG = clrG[k];
+					if (clrB[k] < minB) minB = clrB[k]; if (clrB[k] > maxB) maxB = clrB[k];
+				}
+
+				box->minR = minR; box->minG = minG; box->minB = minB;
+				box->maxR = maxR; box->maxG = maxG; box->maxB = maxB;
+			}
+		}
+
+		numBoxes *= 2;
+	}
+	free(arrangedColours);
+
+	// Set the colours into the palette
+	for (int i = 0; i < numBoxes; i ++) {
+		int minR = boxes[i].minR, minG = boxes[i].minG, minB = boxes[i].minB, maxR = boxes[i].maxR, maxG = boxes[i].maxG, maxB = boxes[i].maxB;
+		int avgR = 0, avgG = 0, avgB = 0;
+		int numAvg = 0;
+
+		for (int j = 0; j < quadNumColours; j += 4) {
+			if (clrR[j] > maxR || clrR[j] < minR || clrG[j] < minG || clrG[j] > maxG || clrB[j] < minB || clrB[j] > maxB)
+				continue; // Not in this box
+
+			avgR += clrR[j];
+			avgG += clrG[j];
+			avgB += clrB[j];
+			numAvg ++;
+		}
+
+		if (!numAvg) // This should never happen but hey-ho
+			continue;
+		
+		avgR /= numAvg; avgG /= numAvg; avgB /= numAvg;
+
+		// PLOT TWIST: Instead of using the pure average of the colours, find the used colour closest to it
+		int bestClr = 0;
+		uint32 bestDist = 0xFFFFFFFF;
+
+		for (int j = 0; j < quadNumColours; j += 4) {
+			if (clrR[j] > maxR || clrR[j] < minR || clrG[j] < minG || clrG[j] > maxG || clrB[j] < minB || clrB[j] > maxB)
+				continue; // Not in this box
+
+			int rDist = clrR[j] - avgR, gDist = clrG[j] - avgG, bDist = clrB[j] - avgB;
+			if (rDist < 0) rDist = -rDist; if (gDist < 0) gDist = -gDist; if (bDist < 0) bDist = -bDist;
+			int dist = rDist;
+
+			if (gDist > dist) dist = gDist;
+			if (bDist > dist) dist = bDist;
+
+			if (dist < bestDist) {
+				bestDist = dist;
+				bestClr = j;
+			}
+		}
+
+		paletteOut[i] = clrR[bestClr] | (clrG[bestClr] << 8) | (clrB[bestClr] << 16);
+	}
+
+	// Free resources
+	free(coloursArrangedByR);
+	free(coloursArrangedByG);
+	free(coloursArrangedByB);
+
+	// If black bias, add black colour to the palette
+	bool addingBlack = false;
+	int finalPaletteSize = desiredPaletteSize;
+	if (hasBlack) {
+		addingBlack = true;
+		for (int i = 0; i < numBoxes; i++) {
+			if (paletteOut[i] == 0)
+				addingBlack = false;
+		}
+
+		if (addingBlack)
+			finalPaletteSize -= 1;
+	}
+
+	// Shrink down the palette if the resulting number of boxes (always a power of 2) is bigger than the number of colours requested
+	while (numBoxes > finalPaletteSize) {
+		int closestDist = 256 * 256 * 256, combine1 = 0, combine2 = 0;
+
+		for (int i = 0; i < numBoxes; i++) {
+			if ((paletteOut[i] & 0x7FFF) == 0)
+				continue; // don't touch the transparency colour
+
+			for (int j = i + 1; j < numBoxes; j++) { // only check colours above i so that we don't repeat searches (i.e. with i and j switched)
+				if ((paletteOut[j] & 0x7FFF) == 0)
+					continue;
+
+				int deltaR = GETR32(paletteOut[i]) - GETR32(paletteOut[j]), deltaG = GETG32(paletteOut[i]) - GETG32(paletteOut[j]),
+					deltaB = GETB32(paletteOut[i]) - GETB32(paletteOut[j]);
+				int dist = deltaR * deltaR + deltaG * deltaG + deltaB * deltaB;
+
+				if (dist < closestDist) {
+					combine1 = i;
+					combine2 = j;
+					closestDist = dist;
+				}
+			}
+		}
+
+		// Combine the palette
+		int incidence1 = 0, incidence2 = 0;
+
+		for (int i = 0; i < numColours; i++) {
+			if ((colours[i] & 0x00FFFFFF) == paletteOut[combine1])
+				incidence1++;
+			if ((colours[i] & 0x00FFFFFF) == paletteOut[combine2])
+				incidence2++;
+		}
+
+		if (incidence2 > incidence1)
+			paletteOut[combine1] = paletteOut[combine2];
+		/*paletteOut[combine1] = MAKECOLOR32((GETR32(paletteOut[combine1]) + GETR32(paletteOut[combine2])) / 2, 
+			(GETG32(paletteOut[combine1]) + GETG32(paletteOut[combine2])) / 2, 
+			(GETB32(paletteOut[combine1]) + GETB32(paletteOut[combine2])) / 2);*/
+
+		// remove combine2 entirely
+		numBoxes--;
+		for (int i = combine2; i < numBoxes; i++)
+			paletteOut[i] = paletteOut[i + 1];
+	}
+
+	if (addingBlack && finalPaletteSize > 0)
+		paletteOut[finalPaletteSize++] = 0;
 }

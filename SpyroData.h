@@ -5,39 +5,19 @@
 
 #define WORLDSCALE 0.01f
 
-#define MAKECOLOR16(r, g, b) ((((r) * 32 / 256) & 31) | (((g) * 32 / 256 & 31) << 5) | (((b) * 32 / 256 & 31) << 10) | 0x8000)
-#define MAKECOLOR32(r, g, b) ((((r) & 0xFF)) | (((g) & 0xFF) << 8) | (((b) & 0xFF) << 16))
-#define GETR16(clr) (((clr) & 31) * 264 / 32)
-#define GETG16(clr) (((clr) >> 5 & 31) * 264 / 32)
-#define GETB16(clr) (((clr) >> 10 & 31) * 264 / 32)
-#define GETR32(clr) ((clr) & 0xFF)
-#define GETG32(clr) (((clr) >> 8) & 0xFF)
-#define GETB32(clr) (((clr) >> 16) & 0xFF)
-
-#define TEXTURESPERROW 8 // (in a texture export) number of textures in a single row
-#define TEXTUREROWLENGTH ((TEXTURESPERROW) * 64)
-
-#define TILETOX(a) (((a) & 1) << 5) // texture tile ID to offset (0: 0, 0 1: 0, 32 2: 32,0 3: 32,32)
-#define TILETOY(a) (((a) & 2) << 4)
-
-#define MAXAVGTEXCOLOURS 200
-
-// bit simplifiers
-// get bits unsigned
-#define bitsu(num, bitstart, numbits) ((num) >> (bitstart) & ~(0xFFFFFFFF << (numbits)))
-// get bits signed
-#define bitss(num, bitstart, numbits) (int) ((((num) >> (bitstart) & ~(0xFFFFFFFF << (numbits))) | (0 - (((num) >> ((bitstart)+(numbits)-1) & 1)) << (numbits))))
-// build bits (use |)
-#define bitsout(num, bitstart, numbits) (((num) & ~(0xFFFFFFFF << (numbits))) << (bitstart))
-
 const uint16 BUT_TRIANGLE = 0x1000, BUT_SQUARE = 0x2000, BUT_X = 0x4000, BUT_CIRCLE = 0x8000;
 const uint16 BUT_UP = 0x0010, BUT_RIGHT = 0x0020, BUT_DOWN = 0x0040, BUT_LEFT = 0x0080;
 const uint16 BUT_L2 = 0x0100, BUT_R2 = 0x0200, BUT_L1 = 0x0400, BUT_R1 = 0x0800;
 const uint16 BUT_SELECT = 0x0100, BUT_L3 = 0x0200, BUT_R3 = 0x0400, BUT_START = 0x0008;
 
+extern int game;
+
+// Spyro struct definitions follow!
 #pragma pack(push, 1)
+
+// Pointer type used to access PS1 memory pointers
 template <typename PointerType>
-struct SpyroPointer { // Pointer type used to access PS1 memory pointers
+struct SpyroPointer {
 	uint32 address;
 
 	inline operator PointerType*() {
@@ -158,78 +138,7 @@ struct Moby { // Moby size: 0x58
 	int8 dogtail[8]; // 0x54
 };
 
-enum power {
-	PWR_ATTRACTION = 0x01,
-	PWR_REPULSION = 0x02,
-	PWR_GEMATTRACT = 0x04,
-	PWR_FORCEFIELD = 0x08,
-	PWR_SUPERBASH = 0x10,
-	PWR_ULTRABASH = 0x20,
-	PWR_HEADBASHPOCALYPSE = 0x40,
-	PWR_BUTTERFLYBREATH = 0x80,
-	PWR_DEATHSTARE = 0x0100,
-	PWR_DEATHFIELD = 0x0200,
-	PWR_REPELSTARE = 0x0400,
-	PWR_ATTRACTSTARE = 0x0800,
-	PWR_EXORCIST = 0x1000,
-	PWR_TORNADO = 0x2000,
-	PWR_TELEKINESIS = 0x4000,
-	PWR_TRAIL = 0x8000,
-	PWR_LOOKATSTUFF = 0x00010000,
-	PWR_BARRELROLLS = 0x00020000,
-	PWR_SANICROLLS  = 0x00040000,
-	PWR_GIRAFFE     = 0x00080000,
-	PWR_LUCIO       = 0x00100000
-};
-
-enum PaletteType {
-	PT_LQ = 0,
-	PT_HQ = 1
-};
-
-struct TexLq {
-	uint8 xmin, ymin;
-	uint8 palettex, palettey;
-	uint8 xmax, ymax;
-	uint8 region, alphaEtc;
-};
-
-struct TexHq {
-	uint8 xmin, ymin;
-	uint16 palette;
-	uint8 xmax, ymax;
-	uint8 region, unknown;
-
-	inline int GetXMin() {
-		return ((region * 128) % 2048) + xmin;
-	}
-	inline int GetYMin() {
-		return ((region & 0x1F) / 16 * 256) + ymin;
-	}
-	inline int GetXMax() {
-		return ((region * 128) % 2048) + xmax;
-	}
-	inline int GetYMax() {
-		return ((region & 0x1F) / 16 * 256) + ymax;
-	}
-};
-
-struct TexDef {
-	TexLq lqData[2];
-	TexHq hqData[4];
-};
-
-struct HqTexDef {
-	uint32 unknown[2];
-	TexHq hqData[4];
-	TexHq hqDataClose[16];
-};
-
-struct LqTexDef {
-	TexLq lqData[2];
-};
-
-struct SkyDef {
+struct SpyroSky {
 	uint32 size;
 	uint32 backColour;
 	uint32 numSectors;
@@ -271,10 +180,14 @@ struct SceneSectorHeader {
 		uint32 data32[1]; uint16 data16[2]; uint8 data8[4];
 	};
 
-	int GetSize() const; // gets size in bytes
+	inline int GetSize() const {
+		return (7 + numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2 + numHpFaces * 4) * 4;
+	}
+
 	inline int GetFlistId() const {
 		return zPos & 0x1FFF; // since the per-face references max at 1FFF, this is a fairly safe assumption
 	}
+
 	inline void SetFlistId(uint32 val) {
 		zPos = (zPos & (0xFFFFE000)) | (val & 0x1FFF);
 	}
@@ -282,24 +195,29 @@ struct SceneSectorHeader {
 	inline uint32* GetLpVertices() {
 		return data32;
 	}
+
 	inline uint32* GetLpColours() {
 		return &data32[numLpVertices];
 	}
+
 	inline uint32* GetLpFaces() {
 		return &data32[numLpVertices + numLpColours];
 	}
+
 	inline uint32* GetHpVertices() {
 		return &data32[numLpVertices + numLpColours + numLpFaces * 2];
 	}
+
 	inline uint32* GetHpColours() {
 		return &data32[numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices];
 	}
+
 	inline SceneFace* GetHpFaces() {
 		return (SceneFace*) &data32[numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2];
 	}
 };
 
-struct SceneDef {
+struct SpyroScene {
 	uint32 size;
 	uint32 iForget;
 	uint32 numSectors;
@@ -307,19 +225,7 @@ struct SceneDef {
 	SpyroPointer<SceneSectorHeader> sectors[1];
 };
 
-extern int game;
 struct SceneFace {
-	union {
-		uint8 verts[4]; // 0x00
-		uint32 word1; // 0x00
-	};
-	union {
-		uint8 colours[4]; // 0x04
-		uint32 word2; // 0x04
-	};
-	uint32 word3; // 0x08
-	uint32 word4; // 0x0C
-
 	inline int GetTexture() const {
 		if (game != SPYRO1)
 			return word4 & 0x7F;
@@ -382,6 +288,17 @@ struct SceneFace {
 			}
 		}
 	}
+	
+	union {
+		uint8 verts[4]; // 0x00
+		uint32 word1; // 0x00
+	};
+	union {
+		uint8 colours[4]; // 0x04
+		uint32 word2; // 0x04
+	};
+	uint32 word3; // 0x08
+	uint32 word4; // 0x0C
 };
 
 struct ModelAnimFrameInfo {
@@ -471,7 +388,7 @@ struct CollTri {
 	inline void SetPoints(int myId, int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z);
 };
 
-struct CollDef {
+struct SpyroCollision {
 	uint32 numTriangles;
 	uint32 numUnkn1;
 	uint32 numUnkn2;
@@ -483,7 +400,7 @@ struct CollDef {
 	uint32 selfAddressUseless;
 };
 
-struct CollDefS1 {
+struct SpyroCollisionS1 {
 	uint32 numTriangles;
 	uint32 numUnkn1;
 	SpyroPointer<uint16> blockTree;
@@ -496,23 +413,6 @@ struct CollDefS1 {
 struct LevelColours {
 	uint8 fogR, fogG, fogB;
 	int32 lightR, lightG, lightB;
-};
-
-struct ObjTex {
-	uint16 minX, maxX;
-	uint16 minY, maxY;
-	uint32 paletteX, paletteY;
-	
-	uint16 mapX, mapY; // position on ObjTexMap
-
-	bool8 hasFade; // whether or not a fading texture palette is required
-};
-
-struct ObjTexMap {
-	uint16 width, height;
-
-	ObjTex textures[2048];
-	uint16 numTextures;
 };
 
 struct CollTriCache {
@@ -575,50 +475,6 @@ enum SpyroEditFileType {
 	SEF_SETTINGS,
 };
 
-enum TextureEditFlags {
-	TEF_SEPARATE         = 1,
-	TEF_GENERATEPALETTES = 2,
-	TEF_SHUFFLEPALETTES  = 4,
-	TEF_AUTOLQ           = 8,
-};
-
-struct TexCacheTile {
-	uint32 bitmap[32 * 32];
-	uint32 minX, minY, maxX, maxY; // full ABSOLUTE (vram coords) of this tile's known range of X and Y mapping, checked over time for moving textures
-	uint32 sizeX, sizeY;
-	
-	uint32 texId;
-	uint8 tileId;
-};
-
-struct TexCache;
-extern TexCache texCaches[256];
-struct TexCache {
-	TexCacheTile tiles[4];
-	uint8 tileTransform[4];
-
-	uint32 paletteId;
-	bool8 ignore; // ignored textures won't be loaded into memory and their palettes will be preserved
-
-	inline void Reset() {
-		ignore = false;
-		paletteId = 0;
-
-		for (int i = 0; i < 4; i++) {
-			tiles[i].minX = 0; tiles[i].maxX = 0;
-			tiles[i].minY = 0; tiles[i].maxY = 0;
-			tiles[i].sizeX = 0; tiles[i].sizeY = 0;
-			tiles[i].texId = this - texCaches;
-			tiles[i].tileId = i;
-		}
-	}
-};
-
-struct Matrix {
-	int xx, xy; // x = x * xx + y * xy
-	int yx, yy; // y = x * yx + y * yy
-};
-
 extern TexCache texCaches[256];
 extern uint32 numTexCaches;
 extern uint32 numPaletteCaches;
@@ -644,31 +500,24 @@ extern int32* numMobys;
 
 extern SpyroPointer<ModelHeader>* mobyModels;
 
-extern TexDef* textures;
-extern int32* numTextures;
-
-extern LqTexDef* lqTextures; // Spyro 1 only
-extern HqTexDef* hqTextures; // Spyro 1 only
-
 extern ObjTexMap objTexMap; // Object texture map generated by SpyroEdit based on moby textures (moby=obj)
 
 extern uint32* levelNames;
 extern int numLevelNames;
 
-extern uint32 powers;
 extern uint32 texEditFlags; // of the TextureEditFlags enum
 
-extern SceneDef* sceneData;
+extern SpyroScene* sceneData;
 
-extern SkyDef* skyData;
+extern SpyroSky* skyData;
 extern uint32* skyNumSectors;
 extern uint32* skyBackColour;
 
 extern uint8* sceneOcclusion;
 extern uint8* skyOcclusion;
 
-extern CollDef* collData;
-extern CollDefS1* s1CollData;
+extern SpyroCollision* collData;
+extern SpyroCollisionS1* s1CollData;
 
 extern CollisionCache collisionCache;
 
@@ -681,29 +530,14 @@ extern int palettes[1000]; // Byte positions of palettes
 extern int paletteTypes[1000];
 extern int numPalettes;
 
-extern uint8 avgTexColours[MAXAVGTEXCOLOURS][4][3]; // By texture, corner and colour channel
-
 // hacks
 extern bool modifyCode; // Whether or not the plugin shall change the game's ASM
 extern bool disableSceneOccl, disableSkyOccl; // Self-explanitory
 
 void SpyroLoop(); // main loop
-void PowersLoop(); // Spyro's powers applied here
 void MultiplayerLoop(); // Spyro draw code overwritten and updated here (only if multiple players or recordings are in-game)
 
-void DetectSpyroData(); // scans for and retrieves game data (pointers, etc). May not necessarily retrieve all data; unavailable data is typically reset to NULL or 0.
-
-void SaveTextures(); // saves textures based on the current setting
-void SaveTexturesAsSingle(); // Saves textures as a single 16-bit bmp file
-void SaveTexturesAsMultiple(); // Saves textures into individual 8-bit HQ bmps and 4-bit LQ bmps
-void SaveObjectTextures(); // Saves textures of the object model
-void LoadTextures(); // Loads textures based on the current setting
-void LoadTexturesAsSingle(); // Loads textures from a single 16 or 24-bit bmp file
-void LoadTexturesAsMultiple(); // Loads textures from multiple 8-bit HQ bitmaps and 4-bit LQ bitmaps
-void LoadTexturesAsMultipleUnpaletted(); // Loads textures from multiple 8/16/24-bit HQ bitmaps
-void LoadObjectTextures(); // Loads textures of the object models
-
-void UpdateObjTexMap();
+void UpdateSpyroPointers(); // scans for and retrieves game data (pointers, etc). May not necessarily retrieve all data; unavailable data is typically reset to NULL or 0.
 
 void SaveSky(); // saves the sky model
 void LoadSky(const char* customFilename = 0); // loads the sky model
@@ -717,11 +551,6 @@ void GetLevelColours(LevelColours* clrsOut); // obtains level colours (does this
 void GetAvgTexColours(); // gets average level colours (incl. textures)
 
 void TweakSky(int r, int g, int b);
-
-void PinkMode(); // makes all level textures pink, because that is important
-void ColorlessMode(); // removes all colour from the level, because it was too bright anyway
-void CreepypastaMode(); // inverts all the colours, the games did it backwards the whole time
-void IndieMode(); // removed all form of detail from the art, as the art is in storytelling, not good graphics, also this has nothing to do with our budget believe me
 
 uint32 GetAverageLightColour();
 uint32 GetAverageSkyColour();
@@ -738,10 +567,7 @@ void MakePaletteFromColours(uint32* paletteOut, int desiredPaletteSize, uint32* 
 float ToRad(int8 angle);
 int8 ToAngle(float rad);
 
-struct GPUSnapshot;
 extern "C" void (__stdcall* Reset_Recompiler)(void);
-extern "C" void GetSnapshot(GPUSnapshot* dataOut);
-extern "C" void SetSnapshot(const GPUSnapshot* in);
 
 inline void CollTri::SetPoints(int myId, int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z) {
 	if (p1Z <= p2Z && p1Z <= p3Z && 

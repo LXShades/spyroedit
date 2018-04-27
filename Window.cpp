@@ -143,7 +143,7 @@ void Startup() {
 
     RegisterClassEx(&wc);
 
-	if (! GetClassInfoEx(mainModule, "STATIC", &wc))
+	if (!GetClassInfoEx(mainModule, "STATIC", &wc))
 		MessageBox(NULL, "It didn't work anyway!", "Well duh..", MB_OK);
 
 	wc.lpszClassName = "WindowProcStatic";

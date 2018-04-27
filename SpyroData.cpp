@@ -5,20 +5,20 @@
 #include "Window.h"
 #include "SpyroData.h"
 #include "Online.h"
+#include "SpyroTextures.h"
+#include "Powers.h"
 
-uint8 broke = 0;
+const char* spyro1LevelNames[] = {
+	"Artisans", "Stone Hill", "Dark Hollow", "Town Square", "Toasty", "Sunny Flight", 
+	"Peace Keepers", "Dry Canyon", "Cliff Town", "Ice Cavern", "Doctor Shemp", "Night Flight", 
+	"Magic Crafters", "Alpine Ridge", "High Caves", "Wizard Peak", "Blowhard", "Crystal Flight", 
+	"Beast Makers", "Terrace Village", "Misty Bog", "Tree Tops", "Metalhead", "Wild Flight", 
+	"Dream Weavers", "Dark Passage", "Lofty Castle", "Haunted Towers", "Jacques", "Icy Flight", 
+	"Gnorc Gnexus", "Gnorc Cove", "Twilight Harbour", "Gnasty Gnorc", "Gnasty's Loot"};
 
 Spyro* spyro;
 SpyroExtended3* spyroExt;
-int32 *spyro_x, *spyro_y, *spyro_z;
-int8 *spyro_nextanim, *spyro_lastanim, *spyro_nextframe, *spyro_lastframe;
-int32 *spyro_angle, *head_angle;
-int32 *spyro_anim, *head_anim;
-int32 *spyro_animprogress;
 void *wadstart;
-
-uint32 powers = 0;
-uint32 texEditFlags = TEF_GENERATEPALETTES | TEF_SHUFFLEPALETTES | TEF_AUTOLQ;
 
 int32* level;
 int32 lastLevel;
@@ -32,27 +32,21 @@ uint16* jokerPtr;
 Moby* mobys;
 int32* numMobys;
 
-TexDef* textures;
-int32* numTextures;
-
-LqTexDef* lqTextures;
-HqTexDef* hqTextures;
-
 SpyroPointer<ModelHeader>* mobyModels;
 
-SceneDef* sceneData;
+SpyroScene* sceneData;
 
 CollisionCache collisionCache;
 
-SkyDef* skyData;
+SpyroSky* skyData;
 uint32* skyNumSectors;
 uint32* skyBackColour;
 
 uint8* sceneOcclusion;
 uint8* skyOcclusion;
 
-CollDef* collData;
-CollDefS1* s1CollData;
+SpyroCollision* collData;
+SpyroCollisionS1* s1CollData;
 
 uint32* levelNames;
 int numLevelNames;
@@ -75,14 +69,6 @@ uint32 spyroDrawFuncAddressHack2 = 0;
 const uint32 drawPlayerFunctionAddress = 0x001F8200; // Default 0x001F8200
 const uint32 drawPlayerAddress = drawPlayerFunctionAddress + 0xA0;
 
-const char* spyro1LevelNames[] = {
-	"Artisans", "Stone Hill", "Dark Hollow", "Town Square", "Toasty", "Sunny Flight", 
-	"Peace Keepers", "Dry Canyon", "Cliff Town", "Ice Cavern", "Doctor Shemp", "Night Flight", 
-	"Magic Crafters", "Alpine Ridge", "High Caves", "Wizard Peak", "Blowhard", "Crystal Flight", 
-	"Beast Makers", "Terrace Village", "Misty Bog", "Tree Tops", "Metalhead", "Wild Flight", 
-	"Dream Weavers", "Dark Passage", "Lofty Castle", "Haunted Towers", "Jacques", "Icy Flight", 
-	"Gnorc Gnexus", "Gnorc Cove", "Twilight Harbour", "Gnasty Gnorc", "Gnasty's Loot"};
-
 Player recordedFrames[60 * 30];
 int numRecordedFrames = 0;
 
@@ -90,14 +76,12 @@ bool recording = false;
 bool playing = false;
 int playingFrame = 0;
 
-GPUSnapshot hurr;
-
 void UpdateLiveGen();
 void LiveGenOnLevelEntry();
 void SpyroOnLevelEntry();
 
 void SpyroLoop() {
-	DetectSpyroData();
+	UpdateSpyroPointers();
 
 	// Call OnEnterLevel if it's believed that the player has just entered a level
 	bool texturesChanged = false;
@@ -132,7 +116,7 @@ void SpyroLoop() {
 		case SPYRO3:
 			NetworkLoop();
 			MultiplayerLoop();
-			PowersLoop();
+			UpdatePowers();
 			UpdateLiveGen();
 			break;
 	}
@@ -278,7 +262,7 @@ uint32 spyroPois[POI_NUMTYPES]; // List of Spyro 'places of interest' e.g. areas
 								// List values are in indices of umem32
 								// The Temmie Shop theme is now stuck in my head. pOI!!!!!
 
-void DetectSpyroData() {
+void UpdateSpyroPointers() {
 	// Find the variables we need for Spyro hacking. If this function has been called before, spyroPois is a helpful list of previously-found memory areas.
 	// If not, the memory is re-scanned from minMemScan to maxMemScan.
 	// During this function all Spyro variables are reset, this is mostly for safety but also because some variables, such as mobys, will change between levels.
@@ -384,8 +368,8 @@ void DetectSpyroData() {
 					uint32 collAddr = ((uintmem[i] << 16) + (int16) (uintmem[i+1] & 0xFFFF) + (int16) (uintmem[i+2] & 0xFFFF)) & 0x003FFFFF;
 
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						sceneData = (SceneDef*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
-						collData = (CollDef*) &bytemem[uintmem[collAddr/4] & 0x003FFFFF];
+						sceneData = (SpyroScene*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
+						collData = (SpyroCollision*) &bytemem[uintmem[collAddr/4] & 0x003FFFFF];
 						sceneOcclusion = (uint8*)&bytemem[uintmem[addr/4+2] & 0x003FFFFF];
 						skyOcclusion = (uint8*)&bytemem[uintmem[addr/4+3] & 0x003FFFFF];
 						spyroPois[POI_SCENE] = i;
@@ -402,7 +386,7 @@ void DetectSpyroData() {
 					uint32 addr = BUILDADDR(uintmem[i + 5], uintmem[i + 6]);
 
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						sceneData = (SceneDef*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
+						sceneData = (SpyroScene*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
 						spyroPois[POI_SCENE] = i;
 					}
 
@@ -417,7 +401,7 @@ void DetectSpyroData() {
 					}
 
 					if ((uintmem[addr/4+11] & 0x003FFFFF) > 0 && (uintmem[addr/4+11] & 0x003FFFFF) < 0x00200000) {
-						s1CollData = (CollDefS1*) &bytemem[uintmem[addr/4+11] & 0x003FFFFF];
+						s1CollData = (SpyroCollisionS1*) &bytemem[uintmem[addr/4+11] & 0x003FFFFF];
 						spyroPois[POI_COLLISION] = i;
 					}
 
@@ -431,7 +415,7 @@ void DetectSpyroData() {
 				if (uintmem[i+0] == 0x48C03800 && (uintmem[i+1] >> 16) == 0x3C01 && (uintmem[i+2] >> 16) == 0x2421 && uintmem[i+3] == 0x8C3F0000 && uintmem[i+4] == 0x8C3D0004) {
 					uint32 addr = BUILDADDR(uintmem[i + 1], uintmem[i + 2]);
 					if ((uintmem[addr/4+1] & 0x003FFFFF) > 0 && (uintmem[addr/4+1] & 0x003FFFFF) < 0x00200000) {
-						skyData = (SkyDef*) &bytemem[STRIPADDR(uintmem[addr/4+1] - 0x0C)];
+						skyData = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4+1] - 0x0C)];
 						skyNumSectors = (uint32*) &uintmem[addr/4];
 						skyBackColour = (uint32*) &uintmem[addr/4+2];
 						spyroPois[POI_SKY] = i;
@@ -444,7 +428,7 @@ void DetectSpyroData() {
 
 					uint32 addr = BUILDADDR(uintmem[i + 3], uintmem[i + 4]);
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						skyData = (SkyDef*) &bytemem[STRIPADDR(uintmem[addr/4] - 0x0C)];
+						skyData = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4] - 0x0C)];
 						skyNumSectors = (uint32*) &uintmem[addr/4-1];
 						skyBackColour = (uint32*) &skyData->backColour;
 						spyroPois[POI_SKY] = i;
@@ -638,335 +622,6 @@ void DetectSpyroData() {
 }
 
 void MakeCrater(int craterX, int craterY, int craterZ);
-void PowersLoop() {
-	if (!mobys || !spyro)
-		return;
-
-	static int shockwaveDist = 0;
-	static int headbashingPlayer = -1;
-	static int tkObject = -1;
-	static int tkLockDist = 0;
-	uint32* uintmem = (uint32*) memory;
-
-	int numPlayersTotal = player_count;
-
-	if (playing)
-		numPlayersTotal ++; // Include recorded player
-
-	for (int j = 0; j < numPlayersTotal; j++) {
-		Spyro* curSpyro;
-		uint32 curPowers;
-			
-		if (playing && j == numPlayersTotal - 1) { // HACK - use recorded player
-			curSpyro = &recordedFrames[playingFrame].spyro;
-			curPowers = recordedFrames[playingFrame].powers;
-		} else if (j == playerId) { // Local player
-			curSpyro = spyro;
-			curPowers = powers;
-		} else { // Another player
-			curSpyro = &players[j].spyro;
-			curPowers = players[j].powers;
-		}
-
-		if (!curPowers)
-			continue; // No powers to use!
-
-		if ((curPowers & (PWR_SUPERBASH|PWR_ULTRABASH|PWR_HEADBASHPOCALYPSE))) {
-			if (headbashingPlayer != -1) {
-				if (shockwaveDist > 15000)
-					headbashingPlayer = -1; // Finished!
-
-				shockwaveDist += 1000;
-			}
-
-			int numHeadbashFrames = 1;
-			if (mobyModels && mobyModels[0].address && mobyModels[0]->anims[46].address)
-				numHeadbashFrames = mobyModels[0]->anims[46]->numFrames;
-
-			if (curSpyro->main_anim.nextanim == 46 && 
-				curSpyro->main_anim.nextframe >= 12 * numHeadbashFrames / 22 && curSpyro->main_anim.nextframe <= 14 * numHeadbashFrames / 22 && headbashingPlayer == -1) {
-				headbashingPlayer = j;
-				shockwaveDist = 1000;
-				
-				if (curPowers & PWR_HEADBASHPOCALYPSE)
-					MakeCrater(curSpyro->x, curSpyro->y, curSpyro->z);
-			}
-		}
-
-		// Iterate all game objects (mobys)
-		for (int i = 0; i < 500; i++) {
-			if (mobys[i].state == -1)
-				break;
-
-			if (mobys[i].state < 0)
-				continue;
-
-#define RECALCDIST dist = Distance(mobys[i].x, mobys[i].y, mobys[i].z, curSpyro->x, curSpyro->y, curSpyro->z)
-			bool killable = (mobys[i].type != 206); // Question mark jars can freeze Spyro if destroyed from a distance
-			int dist = Distance(mobys[i].x, mobys[i].y, mobys[i].z, curSpyro->x, curSpyro->y, curSpyro->z);
-			float angle = atan2((float) (mobys[i].y - curSpyro->y), (float) (mobys[i].x - curSpyro->x));
-			uint8 ang1 = (uint8) ToAngle(angle);
-			uint8 ang2 = (uint8) (curSpyro->main_angle.z + curSpyro->head_angle.z) & 0xFF;
-			int16 angDifference = 0;
-			if (ang1 > ang2)      angDifference = ang1 - ang2;
-			else if (ang2 > ang1) angDifference = ang2 - ang1;
-			if (angDifference > 128)
-				angDifference = 256 - angDifference;
-
-			if ((curPowers & PWR_ATTRACTION) && dist < 10000 && dist > 1000) {
-				float attractAmt = dist < 400 ? (float) dist : 400.0f;
-
-				if (dist - attractAmt < 1000)
-					attractAmt = dist - 1000;
-
-				float dir = atan2((float) -(mobys[i].y - curSpyro->y), (float) -(mobys[i].x - curSpyro->x));
-				mobys[i].x += cos(dir) * attractAmt;
-				mobys[i].y += sin(dir) * attractAmt;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractAmt;
-
-				RECALCDIST;
-			}
-
-			if ((curPowers & PWR_REPELSTARE) && dist < 10000 && angDifference < 64) {
-				float repelForce = (8000.0f - (float) dist) / 10.0f * (1.0f - angDifference / 64.0f);
-
-				mobys[i].x += cos(angle) * repelForce;
-				mobys[i].y += sin(angle) * repelForce;
-					
-				RECALCDIST;
-			}
-
-			if ((curPowers & PWR_ATTRACTSTARE) && dist < 10000 && angDifference < 5/* && mobys[i].type == 1*/) { // GEM HACK
-				float attractForce = dist < 400 ? (float) dist : 400.0f;
-
-				if (dist - attractForce < 600)
-					attractForce = dist - 600;
-
-				mobys[i].x -= cos(angle) * attractForce;
-				mobys[i].y -= sin(angle) * attractForce;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractForce;
-					
-				RECALCDIST;
-			}
-				
-			if ((curPowers & PWR_GEMATTRACT) && mobys[i].type == 1 && dist < 100000) {
-				float attractAmt = (100000.0f - (float) dist) / 10.0f;
-				//float attractAmt = dist < 400 ? (float) dist : 400.0f;
-
-				if (attractAmt > 400.0f) attractAmt = 400.0f;
-
-				if (attractAmt > dist)
-					attractAmt = dist;
-
-				float dir = atan2((float) -(mobys[i].y - curSpyro->y), (float) -(mobys[i].x - curSpyro->x));
-				mobys[i].x += cos(dir) * attractAmt;
-				mobys[i].y += sin(dir) * attractAmt;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractAmt;
-					
-				RECALCDIST;
-			}
-
-			if (((curPowers & PWR_SUPERBASH) || (curPowers & PWR_ULTRABASH)) && headbashingPlayer == j && killable) {
-				if (dist < shockwaveDist || (curPowers & PWR_ULTRABASH))
-					mobys[i].attack_flags = 0x00950000;
-			}
-
-			if ((curPowers & PWR_BUTTERFLYBREATH) && mobys[i].attack_flags == 0x00010000 && mobys[i].type != 16 && 
-				((! (uintmem[0x0006F9F8 / 4] < 300 && mobys[i].type == 527)) || game != SPYRO3)) { // SHEILA HACK
-				// Butterfly ID: 16
-				Animation null = {0, 0, 0, 0};
-				uint32* uintmem = (uint32*) memory;
-
-				mobys[i].typeData = 0x80000000;
-				mobys[i].collisionData = 0;
-				mobys[i].anim = null;
-				mobys[i].anim.nextframe = 1;
-				mobys[i].type = 16;
-				mobys[i].state = 0;
-				//mobys[i]._unknown[0] = 0;
-				//mobys[i]._unknown[1] = 0;
-				mobys[i].animspeed = 0x30;
-				mobys[i].animRun = 0xFF;
-
-				uintmem[0x00000000/4] = mobys[i].x;
-				uintmem[0x00000004/4] = mobys[i].y;
-				uintmem[0x00000008/4] = mobys[i].z + 10000;
-				uintmem[0x0000000c/4] = 0x05dc0001;
-				uintmem[0x00000010/4] = 0x1cc80000;
-				uintmem[0x00000014/4] = 0x00000000;
-			}
-
-			// DEATH STARE, deserves more code; doesn't need it though!
-			if ((curPowers & PWR_DEATHSTARE) && dist < 10000 && killable && angDifference <= 5)
-				mobys[i].attack_flags = 0x00950000; // SuperFlame: 00950000 Frozen Altars Laser: 10000000
-
-			if ((curPowers & PWR_DEATHFIELD) && dist < 10000 && killable)
-				mobys[i].attack_flags = 0x00950000;
-
-			if ((curPowers & PWR_REPULSION) && mobys[i].type != 120 && dist <= 8000) { // Don't repel Sparx
-				float repelForce = (8000.0f - (float) dist) / 10.0f;
-
-				mobys[i].x += cos(angle) * repelForce;
-				mobys[i].y += sin(angle) * repelForce;
-					
-				RECALCDIST;
-			}
-
-			if ((curPowers & PWR_FORCEFIELD) && mobys[i].type != 120 && dist < 2250) {
-				mobys[i].x += cos(angle) * (2250 - dist);
-				mobys[i].y += sin(angle) * (2250 - dist);
-					
-				RECALCDIST;
-			}
-
-			if ((curPowers & PWR_TORNADO) && dist < 10000 && mobys[i].type != 120) {
-				mobys[i].x += cos(angle - 3.141592f / 2.0f) * 600;
-				mobys[i].y += sin(angle - 3.141592f / 2.0f) * 600;
-
-				// Don't throw them out of orbit, now!
-				int newDist = Distance(curSpyro->x, curSpyro->y, curSpyro->z, mobys[i].x, mobys[i].y, mobys[i].z);
-				mobys[i].x = (mobys[i].x - curSpyro->x) * dist / newDist + curSpyro->x;
-				mobys[i].y = (mobys[i].y - curSpyro->y) * dist / newDist + curSpyro->y;
-					
-				//RECALCDIST; No need; we're locking the distance
-			}
-
-			if ((curPowers & PWR_TELEKINESIS) && dist < 15000 && angDifference <= 5 && uintmem[0x00071340/4] == 7 && // Note: Only currently compatible with PAL (camera mode code)
-				mobys[i].type != 1002 && game == SPYRO3 && gameRegion == PAL) {
-
-				if (tkObject == -1) {
-					tkObject = i;
-					tkLockDist = dist;
-				} else {
-					if (dist < Distance(curSpyro->x, curSpyro->y, curSpyro->z, mobys[tkObject].x, mobys[tkObject].y, mobys[tkObject].z)) {
-						tkObject = i;
-						tkLockDist = dist;
-					}
-				}
-			}
-		} // for loop
-	
-		if (tkObject != -1) {
-			if (((curPowers & PWR_TELEKINESIS) && uintmem[0x00071340/4] != 7) || mobys[tkObject].state < 0) // Note: Only currently compatible with PAL (camera mode code)
-				tkObject = -1; // Reset TK object
-			else {
-				// Move object
-				int dist = Distance(mobys[tkObject].x, mobys[tkObject].y, mobys[tkObject].z, curSpyro->x, curSpyro->y, curSpyro->z);
-				float angleRad = ToRad((uint8) curSpyro->head_angle.z + (uint8) curSpyro->main_angle.z);
-				float verAngleRad = ToRad((uint8) curSpyro->head_angle.y + (uint8) curSpyro->main_angle.y);
-				mobys[tkObject].x = curSpyro->x + cos(angleRad) * tkLockDist * cos(verAngleRad);
-				mobys[tkObject].y = curSpyro->y + sin(angleRad) * tkLockDist * cos(verAngleRad);
-				mobys[tkObject].z = curSpyro->z + tkLockDist * sin(verAngleRad);
-			}
-		}
-	}
-
-	// Single-player powers
-	int mobyCount = 0;
-	static int barrelRollTime = 0, barrelRollDirection = 0;
-	static int backflipTime = 0;
-	static int upsideDownTime = 0;
-	bool sonicSpinningLastFrame = false;
-
-	if ((powers & PWR_LOOKATSTUFF) && game == SPYRO3 && gameRegion == PAL) {
-		if (mobys && spyro) {
-			int closestMoby = -1;
-			int closestMobyDist = 5000;
-			for (int i = 0; ; i++) {
-				if (mobys[i].state == -1)
-					break;
-				mobyCount++;
-
-				if (mobys[i].state >= 0 && mobys[i].type != 120 && mobys[i].type < 1000) {
-					int dist = Distance(spyro->x, spyro->y, spyro->z, mobys[i].x, mobys[i].y, mobys[i].z);
-					int head = (int) ((atan2(mobys[i].y - spyro->y, mobys[i].x - spyro->x)) * 8192.0f / 3.14f) - (spyroExt->zAngle * 0x4000 / 0x1000);
-
-					while (head >= 8192) head -= 16384;
-					while (head <= -8192) head += 16384;
-
-					if (head > -5000 && head < 5000 && dist < closestMobyDist) {
-						closestMoby = i;
-						closestMobyDist = dist;
-					}
-				}
-			}
-
-			if (closestMoby != -1) {
-				SpyroExtended3* spyroExt = (SpyroExtended3*) spyro;
-				spyroExt->headZAngle = (int) ((atan2(mobys[closestMoby].y - spyro->y, mobys[closestMoby].x - spyro->x)) * 8192.0f / 3.14f) - 
-					(spyroExt->zAngle * 0x4000 / 0x1000);
-				spyroExt->headYAngle = (int) ((atan2(mobys[closestMoby].z - spyro->z + 500, Distance(mobys[closestMoby].x, mobys[closestMoby].y, 0, spyro->x, spyro->y, 0)) * 
-					8192.0f / 3.14f));
-
-				while (spyroExt->headZAngle >= 8192) spyroExt->headZAngle -= 16384;
-				while (spyroExt->headZAngle <= -8192) spyroExt->headZAngle += 16384;
-			}
-		}
-	}
-
-	if (powers & PWR_BARRELROLLS) {
-		if ((joker & BUT_X) && (joker & (BUT_LEFT | BUT_RIGHT)) && !barrelRollTime) {
-			if (joker & BUT_RIGHT) barrelRollDirection = 0;
-			if (joker & BUT_LEFT) barrelRollDirection = 1;
-
-			barrelRollTime = 1;
-		}
-
-		if (spyro->main_anim.nextanim != 0x11 && spyro->main_anim.nextanim != 0x21)
-			barrelRollTime = 0;
-
-		if (barrelRollTime) {
-			if (barrelRollDirection == 0) spyroExt->xAngle = (barrelRollTime * 0x1000 / 40) & 0x0FFF;
-			else if (barrelRollDirection == 1) spyroExt->xAngle = -(barrelRollTime * 0x1000 / 40) & 0x0FFF;
-			spyro->z += (int) (sin((float) barrelRollTime / 40.0f * 6.28f) * 75.0f);
-			spyro->main_angle.x = spyroExt->xAngle * 255 / 0x1000;
-
-			barrelRollTime++;
-			if (barrelRollTime >= 40)
-				barrelRollTime = 0;
-		}
-	}
-
-	if (powers & PWR_SANICROLLS) {
-		if (spyro->main_anim.nextanim == 0x16 || spyro->main_anim.nextanim == 0x06) {
-			spyroExt->yAngle -= 400;
-			sonicSpinningLastFrame = true;
-		} else if (sonicSpinningLastFrame) {
-			sonicSpinningLastFrame = false;
-			spyroExt->yAngle = 0;
-		}
-	}
-
-	if ((powers & PWR_GIRAFFE) && gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
-		SpyroModelHeader* spyroModel = (SpyroModelHeader*) mobyModels[0];
-
-		if (spyroModel->anims[spyro->main_anim.nextanim].address) {
-			for (int i = 0; i < spyroModel->anims[spyro->main_anim.nextanim]->numFrames; i++) {
-				SpyroFrameInfo* frame = &spyroModel->anims[spyro->main_anim.nextanim]->frames[i];
-
-				frame->headPos = (frame->headPos & ~0x00000FFF) | 0x480;
-			}
-		}
-	}
-
-	if ((powers & PWR_LUCIO) && gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
-		SpyroModelHeader* spyroModel = (SpyroModelHeader*) mobyModels[0];
-		static float boop = 0.0f;
-		static DWORD startTime = GetTickCount();
-
-		boop = ((GetTickCount() - startTime) % 1000) / 1000.0f * 6.28f;
-
-		if (spyroModel->anims[spyro->main_anim.nextanim].address) {
-			for (int i = 0; i < spyroModel->anims[spyro->main_anim.nextanim]->numFrames; i++) {
-				SpyroFrameInfo* frame = &spyroModel->anims[spyro->main_anim.nextanim]->frames[i];
-
-				frame->headPos = bitsout((int) (sin(boop) * 100.0f) + 120, 21, 11) | 
-								 bitsout((int) (cos(boop) * 100.0f), 10, 11) | 
-								 bitsout((int) (-(1.0f + cos(boop*2.0f)) * 25.0f) + 8, 0, 10);
-			}
-		}
-	}
-}
 
 #define BACKUPLENGTH 600
 
@@ -1094,7 +749,7 @@ void MultiplayerLoop() {
 	int curOtherSpyro = 0;
 
 	// Draw the other online players.
-	for (int i = 0; i < player_count; i ++) {
+	for (int i = 0; i < numPlayers; i ++) {
 		Spyro* curDrawSpyro = &drawSpyros[curOtherSpyro];
 		*curDrawSpyro = players[i].spyro;
 
@@ -1119,11 +774,11 @@ void MultiplayerLoop() {
 			}
 		}
 
-		if (i != playerId)
+		if (i != localPlayerId)
 			curOtherSpyro++;
 	}
 
-	int numExtraSpyros = player_count - 1;
+	int numExtraSpyros = numPlayers - 1;
 	
 	// Draw trail
 	if (powers & PWR_TRAIL) {
@@ -1229,176 +884,6 @@ void MultiplayerLoop() {
 	}
 }
 
-void ColorlessMode()
-{
-	if (!textures&&!hqTextures)
-		return;
-
-	UpdatePaletteList();
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	for (int i = 0; i < numPalettes; i ++)
-	{
-		if (paletteTypes[i] == PT_HQ)
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 256; j ++)
-			{
-				int lum = 0;
-				if ((palette[j] & 31) > lum) lum = (palette[j] & 31);
-				if ((palette[j] >> 5 & 31) > lum) lum = (palette[j] >> 5 & 31);
-				if ((palette[j] >> 10 & 31) > lum) lum = (palette[j] >> 10 & 31);
-				palette[j] = lum | (lum << 5) | (lum << 10) | 0x8000;
-			}
-		}
-		else
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 16; j ++)
-			{
-				uint16* clr = &palette[j];
-				int lum = 0;
-				if ((*clr & 31) > lum) lum = (*clr & 31);
-				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
-				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
-				*clr = lum | (lum << 5) | (lum << 10) | 0x8000;
-			}
-		}
-	}
-	SetSnapshot(&vramSs);
-	CompleteLQPalettes();
-}
-
-void PinkMode()
-{
-	if (!textures&&!hqTextures)
-		return;
-	
-	UpdatePaletteList();
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	for (int i = 0; i < numPalettes; i ++)
-	{
-		if (paletteTypes[i] == PT_HQ)
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 256; j ++)
-			{
-				uint16* clr = &palette[j];
-				int lum = 0;
-				if ((*clr & 31) > lum) lum = (*clr & 31);
-				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
-				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
-				lum = lum * 255 / 31;
-
-				*clr = MAKECOLOR16(255, 150 + (lum * (255 - 160 - 30) / 255), 210 + (lum * (255 - 230 - 10) / 255));
-			}
-		}
-		else
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 16; j ++)
-			{
-				uint16* clr = &palette[j];
-					
-				int lum = 0;
-				if ((*clr & 31) > lum) lum = (*clr & 31);
-				if ((*clr >> 5 & 31) > lum) lum = (*clr >> 5 & 31);
-				if ((*clr >> 10 & 31) > lum) lum = (*clr >> 10 & 31);
-				lum = lum * 255 / 31;
-
-				*clr = MAKECOLOR16(255, 150 + (lum * (255 - 160 - 30) / 255), 210 + (lum * (255 - 230 - 10) / 255));
-			}
-		}
-	}
-
-	SetSnapshot(&vramSs);
-	CompleteLQPalettes();
-}
-
-void IndieMode()
-{
-	if (!sceneData||(!textures&&!hqTextures))
-		return;
-
-	UpdatePaletteList();
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	for (int i = 0; i < numPalettes; i ++)
-	{
-		if (paletteTypes[i] == PT_HQ)
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 256; j ++)
-				palette[j] = 0xFFFF;
-		}
-		else
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 16; j ++)
-				palette[j] = 0xFFFF;
-		}
-	}
-	SetSnapshot(&vramSs);
-	CompleteLQPalettes();
-
-	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < sceneData->numSectors; i ++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
-		int lpColourStart = sector->numLpVertices;
-		int lpFaceStart = sector->numLpVertices + sector->numLpColours;
-		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
-		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
-		int hpFaceStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices + sector->numHpColours * 2;
-
-		// Set light
-		for (int j = 0; j < sector->numHpColours; j ++)
-			sector->data32[hpColourStart + j] = (((sector->data32[hpColourStart + j + sector->numHpColours])&0xFF)/2) | 
-			((((sector->data32[hpColourStart + j + sector->numHpColours])>>8&0xFF)/2)<<8) | 
-			((((sector->data32[hpColourStart + j + sector->numHpColours])>>16&0xFF)/2) << 16);
-	}
-}
-
-void CreepypastaMode()
-{
-	if (!textures)
-		return;
-	
-	UpdatePaletteList();
-	GetSnapshot(&vramSs);
-
-	uint16* vram16 = (uint16*) vramSs.vram;
-	for (int i = 0; i < numPalettes; i ++)
-	{
-		if (paletteTypes[i] == PT_HQ)
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 256; j ++)
-			{
-				uint16* clr = &palette[j];
-
-				*clr = (31 - (*clr & 31)) | ((31 - (*clr >> 5 & 31)) << 5) | ((31 - (*clr >> 10 & 31)) << 10) | 0x8000;
-			}
-		}
-		else
-		{
-			uint16* palette = &vram16[palettes[i] / 2];
-			for (int j = 0; j < 16; j ++)
-			{
-				uint16* clr = &palette[j];
-					
-				*clr = (31 - (*clr & 31)) | ((31 - (*clr >> 5 & 31)) << 5) | ((31 - (*clr >> 10 & 31)) << 10) | 0x8000;
-			}
-		}
-	}
-
-	SetSnapshot(&vramSs);
-	CompleteLQPalettes();
-}
-
 void SaveSky()
 {
 	if (!skyData)
@@ -1417,7 +902,7 @@ void SaveSky()
 		return;
 
 	uint32 startAddr = (uintptr)skyData - (uintptr)memory;
-	WriteFile(skyOut, skyData, sizeof (SkyDef) - 4, &nil, NULL);
+	WriteFile(skyOut, skyData, sizeof (SpyroSky) - 4, &nil, NULL);
 
 
 	for (int i = 0; i < skyData->numSectors; i ++)
@@ -1426,7 +911,7 @@ void SaveSky()
 		WriteFile(skyOut, &offset, 4, &nil, NULL);
 	}
 
-	WriteFile(skyOut, &skyData->data[skyData->numSectors], skyData->size - sizeof (SkyDef) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
+	WriteFile(skyOut, &skyData->data[skyData->numSectors], skyData->size - sizeof (SpyroSky) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
 
 	CloseHandle(skyOut);
 }
@@ -1443,7 +928,7 @@ void LoadSky(const char* useFilename) {
 	}
 
 	HANDLE skyIn = CreateFile(useFilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	SkyDef tempSkyData;
+	SpyroSky tempSkyData;
 
 	if (skyIn == INVALID_HANDLE_VALUE)
 		return;
@@ -1458,7 +943,7 @@ void LoadSky(const char* useFilename) {
 	uint32 startAddr = ((uintptr)skyData - (uintptr)memory) | 0x80000000;
 	DWORD nil;
 
-	ReadFile(skyIn, &tempSkyData, sizeof (SkyDef) - 4, &nil, NULL);
+	ReadFile(skyIn, &tempSkyData, sizeof (SpyroSky) - 4, &nil, NULL);
 	
 	if (tempSkyData.numSectors >= 0x100 || tempSkyData.size >= 0x20000) {
 		CloseHandle(skyIn);
@@ -1487,7 +972,7 @@ void LoadSky(const char* useFilename) {
 	}
 
 	//if (game != SPYRO1)
-		ReadFile(skyIn, &skyData->data[skyData->numSectors], skyData->size - sizeof (SkyDef) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
+		ReadFile(skyIn, &skyData->data[skyData->numSectors], skyData->size - sizeof (SpyroSky) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
 
 	// Don't forget to update the game's other sky variables
 	*skyNumSectors = skyData->numSectors;
@@ -1533,8 +1018,7 @@ void SaveColours()
 	CloseHandle(clrOut);
 }
 
-void LoadColours()
-{
+void LoadColours() {
 	if (!sceneData)
 		return;
 
@@ -1832,8 +1316,7 @@ void TweakSky(int tweakR, int tweakG, int tweakB) {
 	skyData->backColour = *skyBackColour;
 }
 
-uint32 GetAverageLightColour()
-{
+uint32 GetAverageLightColour() {
 	if (!sceneData)
 		return 0;
 
@@ -1851,16 +1334,14 @@ uint32 GetAverageLightColour()
 
 		int avgClrR = 0, avgClrG = 0, avgClrB = 0;
 		int avgClrDiv = 0;
-		for (int j = 0; j < sector->numHpFaces; j ++)
-		{
+		for (int j = 0; j < sector->numHpFaces; j ++) {
 			uint32 faceVerts = sector->data32[hpFaceStart + j * 4], faceVertClrs = sector->data32[hpFaceStart + j * 4 + 1];
 			uint8 verts[4] = {faceVerts >> 24 & 0xFF, faceVerts >> 16 & 0xFF, faceVerts >> 8 & 0xFF, faceVerts & 0xFF};
 			uint8 vertClrs[8] = {faceVertClrs >> 24 & 0xFF, faceVertClrs >> 16 & 0xFF, faceVertClrs >> 8 & 0xFF, faceVertClrs & 0xFF};
 			int numSides = verts[2] == verts[3] ? 3 : 4;
 			uint32 texId = sector->data32[hpFaceStart + j * 4 + 3] & 0x7F;
 
-			for (int k = 0; k < numSides; k ++)
-			{
+			for (int k = 0; k < numSides; k ++) {
 				uint32 lightClr = sector->data32[hpColourStart + vertClrs[k]];
 				uint32 fadeClr = sector->data32[hpColourStart + sector->numHpColours + vertClrs[k]];
 				int lightR = lightClr & 0xFF, lightG = lightClr >> 8 & 0xFF, lightB = lightClr >> 16 & 0xFF;
@@ -1878,8 +1359,7 @@ uint32 GetAverageLightColour()
 			avgClrDiv += numSides;
 		}
 
-		if (avgClrDiv)
-		{
+		if (avgClrDiv) {
 			mainAvgClrR += avgClrR / avgClrDiv;
 			mainAvgClrG += avgClrG / avgClrDiv;
 			mainAvgClrB += avgClrB / avgClrDiv;
@@ -1887,8 +1367,7 @@ uint32 GetAverageLightColour()
 		}
 	}
 
-	if (mainAvgClrDiv)
-	{
+	if (mainAvgClrDiv) {
 		mainAvgClrR /= mainAvgClrDiv;
 		mainAvgClrG /= mainAvgClrDiv;
 		mainAvgClrB /= mainAvgClrDiv;
@@ -1897,8 +1376,7 @@ uint32 GetAverageLightColour()
 	return mainAvgClrR | (mainAvgClrG << 8) | (mainAvgClrB << 16);
 }
 
-uint32 GetAverageSkyColour()
-{
+uint32 GetAverageSkyColour() {
 	if (!skyData)
 		return 0;
 
@@ -1911,27 +1389,22 @@ uint32 GetAverageSkyColour()
 		int avgClrR = 0, avgClrG = 0, avgClrB = 0;
 		uint32* data32 = NULL;
 
-		if (game == SPYRO1)
-		{
+		if (game == SPYRO1) {
 			SkySectorHeaderS1* sector = (SkySectorHeaderS1*) &bytemem[skyData->data[i] & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
-		}
-		else
-		{
+		} else {
 			SkySectorHeader* sector = (SkySectorHeader*) &bytemem[skyData->data[i] & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
 		}
 
-		for (int j = 0; j < numColours; j ++)
-		{
+		for (int j = 0; j < numColours; j ++) {
 			uint32 clr = data32[numVertices + j];
 			int r = clr & 0xFF, g = clr >> 8 & 0xFF, b = clr >> 16 & 0xFF, a = clr >> 24 & 0xFF;
 
 			avgClrR += r; avgClrG += g; avgClrB += b;
 		}
 
-		if (numColours)
-		{
+		if (numColours) {
 			mainAvgClrR += avgClrR / numColours;
 			mainAvgClrG += avgClrG / numColours;
 			mainAvgClrB += avgClrB / numColours;
@@ -1939,8 +1412,7 @@ uint32 GetAverageSkyColour()
 		}
 	}
 
-	if (mainAvgClrDiv)
-	{
+	if (mainAvgClrDiv) {
 		mainAvgClrR /= mainAvgClrDiv;
 		mainAvgClrG /= mainAvgClrDiv;
 		mainAvgClrB /= mainAvgClrDiv;
@@ -1949,255 +1421,12 @@ uint32 GetAverageSkyColour()
 	return mainAvgClrR | (mainAvgClrG << 8) | (mainAvgClrB << 16);
 }
 
-struct ColourBox
-{
-	int minR, minG, minB;
-	int maxR, maxG, maxB;
-};
-
-void MakePaletteFromColours(uint32* paletteOut, int desiredPaletteSize, uint32* colours, int numColours) {
-	ColourBox boxes[256];
-	uint8* clrR = &((uint8*)colours)[0], *clrG = &((uint8*)colours)[1], *clrB = &((uint8*)colours)[2];
-	int numBoxes = 1;
-	int quadNumColours = numColours * 4;
-	uint32* coloursArrangedByR = (uint32*) malloc(numColours * 4), *coloursArrangedByG = (uint32*) malloc(numColours * 4), *coloursArrangedByB = (uint32*) malloc(numColours * 4);
-	bool hasBlack = false;
-
-	// Setup initial box
-	int startMinR = 255, startMinG = 255, startMinB = 255, startMaxR = 0, startMaxG = 0, startMaxB = 0;
-	for (int i = 0; i < quadNumColours; i += 4) {
-		if (clrR[i] < startMinR) startMinR = clrR[i]; if (clrR[i] > startMaxR) startMaxR = clrR[i];
-		if (clrG[i] < startMinG) startMinG = clrG[i]; if (clrG[i] > startMaxG) startMaxG = clrG[i];
-		if (clrB[i] < startMinB) startMinB = clrB[i]; if (clrB[i] > startMaxB) startMaxB = clrB[i];
-	}
-
-	boxes[0].minR = startMinR; boxes[0].maxR = startMaxR;
-	boxes[0].minG = startMinG; boxes[0].maxG = startMaxG;
-	boxes[0].minB = startMinB; boxes[0].maxB = startMaxB;
-
-	if (startMinR == 0 && startMinG == 0 && startMinB == 0)
-		hasBlack = true;
-
-	// Arrange colours on all axes
-	uint8* axes[] = {clrR, clrG, clrB};
-	uint32* arrangedAxes[] = {coloursArrangedByR, coloursArrangedByG, coloursArrangedByB};
-	for (int a = 0; a < 3; a++) {
-		uint8* axisClrs = axes[a];
-		uint32* arrangedAxis = arrangedAxes[a];
-
-		int curArranged = 0;
-
-		for (int j = 0; j < 32; j++) { /* hack: speedup by arranging with 5-bit precision instead of 8-bit */
-			for (int k = 0; k < quadNumColours; k += 4) {
-				if (axisClrs[k] >> 3 == j)
-					arrangedAxis[curArranged++] = colours[k / 4];
-			}
-		}
-	}
-
-	// Make boxes
-	uint8* arrangedColours = (uint8*)malloc(numColours);
-	while (numBoxes < desiredPaletteSize) {
-		for (int i = 0; i < numBoxes; i ++) {
-			ColourBox* curBox = &boxes[i];
-			ColourBox* nextBox = &boxes[numBoxes + i];
-
-			// Find the longest axis
-			int axisId = 0;
-			if (curBox->maxG - curBox->minG > curBox->maxR - curBox->minR) axisId = 1;
-			if (curBox->maxB - curBox->minB > curBox->maxG - curBox->minG) axisId = 2;
-			
-			// Setup axis variables (arrAxis = the colour channel of the longest axis for this box, from the colours arranged by the longest axis for this box)
-			uint32* arrangedAxes[] = {coloursArrangedByR, coloursArrangedByG, coloursArrangedByB};
-			uint32* arrangedAxis = arrangedAxes[axisId];
-			uint8* arrAxis = &((uint8*) arrangedAxis)[axisId];
-			uint8* arrR = &((uint8*) arrangedAxis)[0], *arrG = &((uint8*) arrangedAxis)[1], *arrB = &((uint8*) arrangedAxis)[2];
-
-			uint8 minR = curBox->minR, maxR = curBox->maxR, minG = curBox->minG, maxG = curBox->maxG, minB = curBox->minB, maxB = curBox->maxB;
-
-			// Get colours arranged along the longest axis
-			int numArrangedColours = 0;
-			
-			for (int k = 0; k < quadNumColours; k += 4) {
-				if (arrR[k] < minR || arrR[k] > maxR || arrG[k] < minG || arrG[k] > maxG || arrB[k] < minB || arrB[k] > maxB) // Colour is outside of box!
-					continue;
-
-				arrangedColours[numArrangedColours ++] = arrAxis[k];
-			}
-
-			// Get the median of the colours along this axis
-			int median = 0;
-
-			if (numArrangedColours > 0) {
-				if (!(numArrangedColours & 1))
-					median = (arrangedColours[numArrangedColours / 2 - 1] + arrangedColours[numArrangedColours / 2]) / 2;
-				else
-					median = arrangedColours[numArrangedColours / 2];
-			}
-
-			// Split this box into two by the median. nextBox will be on the greater side of the median; curBox on the smaller side			
-			*nextBox = *curBox;
-			switch (axisId) {
-				case 0:
-					curBox->maxR = median;
-					nextBox->minR = median;
-					break;
-				case 1:
-					curBox->maxG = median;
-					nextBox->minG = median;
-					break;
-				case 2:
-					curBox->maxB = median;
-					nextBox->minB = median;
-					break;
-			}
-
-			// Recalculate the boundaries of both boxes
-			ColourBox* temp[2] = {curBox, nextBox};
-			for (int j = 0; j < 2; j ++) {
-				ColourBox* box = temp[j];
-				int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
-
-				for (int k = 0; k < quadNumColours; k += 4) {
-					if (clrR[k] > box->maxR || clrR[k] < box->minR || clrG[k] > box->maxG || clrG[k] < box->minG || clrB[k] > box->maxB || clrB[k] < box->minB)
-						continue;
-
-					if (clrR[k] < minR) minR = clrR[k]; if (clrR[k] > maxR) maxR = clrR[k];
-					if (clrG[k] < minG) minG = clrG[k]; if (clrG[k] > maxG) maxG = clrG[k];
-					if (clrB[k] < minB) minB = clrB[k]; if (clrB[k] > maxB) maxB = clrB[k];
-				}
-
-				box->minR = minR; box->minG = minG; box->minB = minB;
-				box->maxR = maxR; box->maxG = maxG; box->maxB = maxB;
-			}
-		}
-
-		numBoxes *= 2;
-	}
-	free(arrangedColours);
-
-	// Set the colours into the palette
-	for (int i = 0; i < numBoxes; i ++) {
-		int minR = boxes[i].minR, minG = boxes[i].minG, minB = boxes[i].minB, maxR = boxes[i].maxR, maxG = boxes[i].maxG, maxB = boxes[i].maxB;
-		int avgR = 0, avgG = 0, avgB = 0;
-		int numAvg = 0;
-
-		for (int j = 0; j < quadNumColours; j += 4) {
-			if (clrR[j] > maxR || clrR[j] < minR || clrG[j] < minG || clrG[j] > maxG || clrB[j] < minB || clrB[j] > maxB)
-				continue; // Not in this box
-
-			avgR += clrR[j];
-			avgG += clrG[j];
-			avgB += clrB[j];
-			numAvg ++;
-		}
-
-		if (!numAvg) // This should never happen but hey-ho
-			continue;
-		
-		avgR /= numAvg; avgG /= numAvg; avgB /= numAvg;
-
-		// PLOT TWIST: Instead of using the pure average of the colours, find the used colour closest to it
-		int bestClr = 0;
-		uint32 bestDist = 0xFFFFFFFF;
-
-		for (int j = 0; j < quadNumColours; j += 4) {
-			if (clrR[j] > maxR || clrR[j] < minR || clrG[j] < minG || clrG[j] > maxG || clrB[j] < minB || clrB[j] > maxB)
-				continue; // Not in this box
-
-			int rDist = clrR[j] - avgR, gDist = clrG[j] - avgG, bDist = clrB[j] - avgB;
-			if (rDist < 0) rDist = -rDist; if (gDist < 0) gDist = -gDist; if (bDist < 0) bDist = -bDist;
-			int dist = rDist;
-
-			if (gDist > dist) dist = gDist;
-			if (bDist > dist) dist = bDist;
-
-			if (dist < bestDist) {
-				bestDist = dist;
-				bestClr = j;
-			}
-		}
-
-		paletteOut[i] = clrR[bestClr] | (clrG[bestClr] << 8) | (clrB[bestClr] << 16);
-	}
-
-	// Free resources
-	free(coloursArrangedByR);
-	free(coloursArrangedByG);
-	free(coloursArrangedByB);
-
-	// If black bias, add black colour to the palette
-	bool addingBlack = false;
-	int finalPaletteSize = desiredPaletteSize;
-	if (hasBlack) {
-		addingBlack = true;
-		for (int i = 0; i < numBoxes; i++) {
-			if (paletteOut[i] == 0)
-				addingBlack = false;
-		}
-
-		if (addingBlack)
-			finalPaletteSize -= 1;
-	}
-
-	// Shrink down the palette if the resulting number of boxes (always a power of 2) is bigger than the number of colours requested
-	while (numBoxes > finalPaletteSize) {
-		int closestDist = 256 * 256 * 256, combine1 = 0, combine2 = 0;
-
-		for (int i = 0; i < numBoxes; i++) {
-			if ((paletteOut[i] & 0x7FFF) == 0)
-				continue; // don't touch the transparency colour
-
-			for (int j = i + 1; j < numBoxes; j++) { // only check colours above i so that we don't repeat searches (i.e. with i and j switched)
-				if ((paletteOut[j] & 0x7FFF) == 0)
-					continue;
-
-				int deltaR = GETR32(paletteOut[i]) - GETR32(paletteOut[j]), deltaG = GETG32(paletteOut[i]) - GETG32(paletteOut[j]),
-					deltaB = GETB32(paletteOut[i]) - GETB32(paletteOut[j]);
-				int dist = deltaR * deltaR + deltaG * deltaG + deltaB * deltaB;
-
-				if (dist < closestDist) {
-					combine1 = i;
-					combine2 = j;
-					closestDist = dist;
-				}
-			}
-		}
-
-		// Combine the palette
-		int incidence1 = 0, incidence2 = 0;
-
-		for (int i = 0; i < numColours; i++) {
-			if ((colours[i] & 0x00FFFFFF) == paletteOut[combine1])
-				incidence1++;
-			if ((colours[i] & 0x00FFFFFF) == paletteOut[combine2])
-				incidence2++;
-		}
-
-		if (incidence2 > incidence1)
-			paletteOut[combine1] = paletteOut[combine2];
-		/*paletteOut[combine1] = MAKECOLOR32((GETR32(paletteOut[combine1]) + GETR32(paletteOut[combine2])) / 2, 
-			(GETG32(paletteOut[combine1]) + GETG32(paletteOut[combine2])) / 2, 
-			(GETB32(paletteOut[combine1]) + GETB32(paletteOut[combine2])) / 2);*/
-
-		// remove combine2 entirely
-		numBoxes--;
-		for (int i = combine2; i < numBoxes; i++)
-			paletteOut[i] = paletteOut[i + 1];
-	}
-
-	if (addingBlack && finalPaletteSize > 0)
-		paletteOut[finalPaletteSize++] = 0;
-}
-
-float ToRad(int8 angle)
-{
+float ToRad(int8 angle) {
 	uint8 uAngle = *((uint8*) &angle);
 	return (float) uAngle / 256.0f * 6.283f;
 }
 
-int8 ToAngle(float rad)
-{
+int8 ToAngle(float rad) {
 	uint8 uAngle = (uint8) (rad * 256.0f / 6.283f);
 	return *(int8*) &uAngle;
 }
@@ -2261,11 +1490,6 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 		if (fileType == SEF_TEXTUREFOLDERHQ || fileType == SEF_TEXTUREFOLDERLQ)
 			CreateDirectory(filenameOut, NULL);
 	}
-}
-
-int SceneSectorHeader::GetSize() const
-{
-	return (7 + numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2 + numHpFaces * 4) * 4;
 }
 
 /*

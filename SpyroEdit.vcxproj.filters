@@ -1,12 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="ObjectEdit.h" />
-    <ClInclude Include="Online.h" />
-    <ClInclude Include="SpyroData.h" />
-    <ClInclude Include="Types.h" />
-    <ClInclude Include="Window.h" />
-    <ClInclude Include="Main.h" />
     <ClInclude Include="..\Sudden Death\GenLib\Source\GenError.h">
       <Filter>LiveGenesis</Filter>
     </ClInclude>
@@ -31,16 +25,65 @@
     <ClInclude Include="..\Sudden Death\GenLib\Source\GenType.h">
       <Filter>LiveGenesis</Filter>
     </ClInclude>
+    <ClInclude Include="SpyroData.h">
+      <Filter>SpyroData</Filter>
+    </ClInclude>
+    <ClInclude Include="ObjectEdit.h">
+      <Filter>SpyroData</Filter>
+    </ClInclude>
+    <ClInclude Include="Main.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Window.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Online.h">
+      <Filter>SpyroData</Filter>
+    </ClInclude>
+    <ClInclude Include="SpyroTextures.h">
+      <Filter>SpyroData</Filter>
+    </ClInclude>
+    <ClInclude Include="Powers.h">
+      <Filter>SpyroData</Filter>
+    </ClInclude>
+    <ClInclude Include="Vram.h">
+      <Filter>Main</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DLLMain.cpp" />
-    <ClCompile Include="ObjectEdit.cpp" />
-    <ClCompile Include="Online.cpp" />
-    <ClCompile Include="SpyroData.cpp" />
-    <ClCompile Include="Window.cpp" />
-    <ClCompile Include="SpyroLiveGen.cpp" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="SpyroTextures.cpp" />
+    <ClCompile Include="SpyroData.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="SpyroTextures.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="SpyroLiveGen.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="ObjectEdit.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="Main.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="DLLMain.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Window.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Online.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="Powers.cpp">
+      <Filter>SpyroData</Filter>
+    </ClCompile>
+    <ClCompile Include="Vram.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="DEF">
@@ -48,6 +91,12 @@
     </Filter>
     <Filter Include="LiveGenesis">
       <UniqueIdentifier>{eb8009b4-00bd-428e-9c1f-1b3006e732a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SpyroData">
+      <UniqueIdentifier>{4c2e007f-a071-4c2b-83c1-d08adde5f03f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Main">
+      <UniqueIdentifier>{16b22edf-2413-42d9-a68b-168bd87f653a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
