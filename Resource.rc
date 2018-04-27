@@ -1,0 +1,8 @@
+#include <winuser.h>
+
+200 DIALOGEX 100, 100, 80, 50
+FONT 8, "Microsoft Sans Serif"
+CAPTION "Spyro Live Editor"
+{
+	CONTROL "Testing, 1, 2, 3.", 0, "STATIC", WS_CHILD | WS_VISIBLE, 0, 50, 100, 18
+}

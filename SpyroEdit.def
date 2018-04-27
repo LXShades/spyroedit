@@ -1,0 +1,27 @@
+EXPORTS
+	GPUinit=GPUinit
+	GPUshutdown=GPUshutdown
+	GPUopen=GPUopen
+	GPUclose=GPUclose
+	GPUdmaChain=GPUdmaChain
+	GPUupdateLace=GPUupdateLace
+	GPUclearDynarec=GPUclearDynarec
+	GPUsetMode=GPUsetMode
+	GPUgetMode=GPUgetMode
+	GPUreadData=GPUreadData
+	GPUreadDataMem=GPUreadDataMem
+	GPUreadStatus=GPUreadStatus
+	GPUwriteData=GPUwriteData
+	GPUwriteDataMem=GPUwriteDataMem
+	GPUwriteStatus=GPUwriteStatus
+	GPUdisplayText=GPUdisplayText
+	GPUmakeSnapshot=GPUmakeSnapshot
+	GPUfreeze=GPUfreeze
+	GPUgetScreenPic=GPUgetScreenPic
+	GPUshowScreenPic=GPUshowScreenPic
+	GPUconfigure=GPUconfigure
+	GPUtest=GPUtest
+	GPUabout=GPUabout
+	PSEgetLibName=PSEgetLibName
+	PSEgetLibType=PSEgetLibType
+	PSEgetLibVersion=PSEgetLibVersion
