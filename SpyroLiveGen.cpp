@@ -1,6 +1,7 @@
 #include "Window.h"
 #include "SpyroData.h"
 #include "Main.h"
+#include "SpyroTextures.h"
 
 #include "GenLive.h"
 #include "GenObject.h"
@@ -357,19 +358,11 @@ void SendLiveGenScene() {
 }
 
 void SendLiveGenCollision() {
-	if (!live || (!collData && !s1CollData))
+	if (!live || !spyroCollision.IsValid())
 		return;
 
-	uint32* data;
-	int numTriangles;
-
-	if (!s1CollData) {
-		data = (uint32*) collData->triangleData;
-		numTriangles = collData->numTriangles;
-	} else {
-		data = (uint32*) s1CollData->triangleData;
-		numTriangles = s1CollData->numTriangles;
-	}
+	uint32* data = (uint32*) spyroCollision.triangles;
+	int numTriangles = spyroCollision.numTriangles;
 
 	// Setup data structs
 	GenState posState(GENID_COLLISIONDATAMOD, GENMESH_VERTS), indexState(GENID_COLLISIONDATAMOD, GENMESH_FACEVERTINDEX), 
@@ -392,7 +385,7 @@ void SendLiveGenCollision() {
 	// Get verts
 	GenVec3* verts = posData->vec3;
 	gens32* faceIndices = indexData->s32;
-	uint16* refs = s1CollData ? s1CollData->blocks : collData->blocks;
+	uint16* refs = spyroCollision.blocks;
 	int blckStart[100] = {0};//((collData->triangleData & 0x003FFFFF) - (collData->blocks & 0x003FFFFF)) / 2;
 	genu32 blckClrs[3] = {0xFF0000FF, 0xFF00FF00, 0xFFFF0000};
 	int blck = 0;
@@ -619,7 +612,7 @@ void SendLiveGenMobyModel(int modelId, int mobyId = -1) {
 		return;
 
 	if (mobyId > -1)
-		BuildGenMobyModel(modelId, mobys[mobyId].anim.nextanim, mobys[mobyId].anim.nextframe);
+		BuildGenMobyModel(modelId, mobys[mobyId].anim.nextAnim, mobys[mobyId].anim.nextFrame);
 	else
 		BuildGenMobyModel(modelId, 0, 0);
 
@@ -995,19 +988,10 @@ void BuildSpyroSector(int sectorId) {
 	curFaceId += sector->numHpFaces; // delete this line?
 
 	// UPDATE COLLISION TRIANGLES ********
-	CollTri* triangles;
-	uint16* triangleTypes = nullptr;
-	int numTriangles = 0;
+	CollTri* triangles = spyroCollision.triangles;
+	uint16* triangleTypes = spyroCollision.surfaceType;
+	int numTriangles = spyroCollision.numTriangles;
 
-	if (collData) {
-		triangles = collData->triangleData;
-		triangleTypes = collData->surfaceType;
-		numTriangles = collData->numTriangles;
-	} else if (s1CollData) {
-		triangles = s1CollData->triangleData;
-		numTriangles = s1CollData->numTriangles;
-	}
-	
 	// Our sector colltri cache
 	CollSectorCache* sectorCache = &collisionCache.sectorCaches[sectorId];
 	CollTriCache* cache = sectorCache->triangles;
@@ -1823,13 +1807,13 @@ void SetupCollisionLinks() {
 	collisionCache.numUnlinkedTriangles = 0;
 
 	// NEW: Rebuild collision cache
-	if ((collData/* || s1CollData uncommented until surface types clarified */) && sceneData && sceneData->numSectors < 0xFF) {
-		CollTri* triangles = (collData ? collData->triangleData : s1CollData->triangleData);
-		int numTriangles = (collData ? collData->numTriangles : s1CollData->numTriangles);
-		uint16* triangleTypes = (collData ? collData->surfaceType : (uint16*)nullptr); // lol? where is the Spyro 1 surface type
+	if ((spyroCollision.IsValid() /* || s1CollData uncommented until surface types clarified */) && sceneData && sceneData->numSectors < 0xFF) {
+		CollTri* triangles = spyroCollision.triangles;
+		int numTriangles = spyroCollision.numTriangles;
+		uint16* triangleTypes = spyroCollision.surfaceType;
 		const int maxSeparationDistance = 4;
-		bool* cachedTriangles = (bool*) malloc(collData->numTriangles * sizeof (bool)); // For each triangle, value is true if it has now been cached
-		memset(cachedTriangles, 0, collData->numTriangles * sizeof (bool));
+		bool* cachedTriangles = (bool*) malloc(numTriangles * sizeof (bool)); // For each triangle, value is true if it has now been cached
+		memset(cachedTriangles, 0, numTriangles * sizeof (bool));
 
 		// This operation is slow, so we'll deliberately compartmentalise the collision triangles into smaller--wait. Doesn't Spyro already do this?
 		// Todo: Abuse this Spyro feature
@@ -1967,22 +1951,12 @@ void SetupCollisionLinks() {
 }
 
 void RebuildCollisionTriangles() {
-	if ((!collData && !s1CollData) || !sceneData)
+	if (!spyroCollision.IsValid() || !sceneData)
 		return;
 
-	CollTri* triangles = NULL;
-	uint16* surfaces = NULL;
-	int oldNumTriangles = 0;
-
-	if (collData) {
-		triangles = collData->triangleData;
-		surfaces = collData->blocks;
-		oldNumTriangles = collData->numTriangles;
-	} else if (s1CollData) {
-		triangles = s1CollData->triangleData;
-		surfaces = s1CollData->blocks;
-		oldNumTriangles = s1CollData->numTriangles;
-	}
+	CollTri* triangles = spyroCollision.triangles;
+	uint16* surfaces = spyroCollision.blocks; // ??
+	int oldNumTriangles = spyroCollision.numTriangles;
 
 	// Perform massive triangle build
 	int numTriangles = 0;
@@ -1998,7 +1972,7 @@ void RebuildCollisionTriangles() {
 
 		const GenMeshVert* genVerts = genSector->GetVerts();
 		const GenMeshFace* genFaces = genSector->GetFaces();
-		for (int i = 0, numFaces = genSector->GetNumFaces(); i < numFaces && numTriangles < collData->numTriangles; i++) {
+		for (int i = 0, numFaces = genSector->GetNumFaces(); i < numFaces && numTriangles < spyroCollision.numTriangles; i++) {
 			for (int t = 0; t < genFaces[i].numSides - 2; t++) {
 				const GenVec3* vert1 = &genVerts[genFaces[i].sides[t*2].vert].pos, *vert2 = &genVerts[genFaces[i].sides[t*2+1].vert].pos,
 							  *vert3 = &genVerts[genFaces[i].sides[(t*2+2) & 3].vert].pos;
@@ -2015,10 +1989,7 @@ void RebuildCollisionTriangles() {
 		}
 	}
 	
-	if (collData)
-		collData->numTriangles = numTriangles;
-	else if (s1CollData)
-		s1CollData->numTriangles = numTriangles;
+	spyroCollision.numTriangles = numTriangles;
 
 	// Relink collision data
 	SetupCollisionLinks();
@@ -2041,27 +2012,13 @@ struct TriBounds {
 };
 
 void RebuildCollisionTree() {
-	if (!collData && !s1CollData)
+	if (!spyroCollision.IsValid())
 		return;
 
-	uint32* tri;
-	int numTris;
-	uint32 blockAddr, blockTreeAddr, triangleDataAddr;
+	uint32* tri = (uint32*)spyroCollision.triangles;
+	int numTris = spyroCollision.numTriangles;
+	uint32 blockAddr = spyroCollision.blocks.address, blockTreeAddr = spyroCollision.blockTree.address, triangleDataAddr = spyroCollision.triangles.address;
 	
-	if (collData) {
-		 tri = (uint32*) collData->triangleData;
-		 numTris = collData->numTriangles;
-		 blockAddr = collData->blocks.address;
-		 blockTreeAddr = collData->blockTree.address;
-		 triangleDataAddr = collData->triangleData.address;
-	} else {
-		tri = (uint32*) s1CollData->triangleData;
-		numTris = s1CollData->numTriangles;
-		blockAddr = s1CollData->blocks.address;
-		blockTreeAddr = s1CollData->blockTree.address;
-		triangleDataAddr = s1CollData->triangleData.address;
-	}
-
 	// phase 1: find minimum and maximum collision vert positions and count the size of each block	 
 	int xBlockSize[256] = {0}, yBlockSize[256] = {0}, zBlockSize[256] = {0};
 	TriBounds* bounds = (TriBounds*) malloc(numTris * sizeof (TriBounds));

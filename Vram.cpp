@@ -1,5 +1,7 @@
 #include "Vram.h"
 
+Vram vram;
+
 // Accessor functions for the PlayStation VRAM
 extern "C" void GetSnapshot(GPUSnapshot* dataOut);
 extern "C" void SetSnapshot(const GPUSnapshot* in);
@@ -63,6 +65,10 @@ void Vram::PostFrameUpdate() {
 	}
 
 	isValidIn = false;
+}
+
+void Vram::GetSnapshot(GPUSnapshot* snapshotOut) {
+	::GetSnapshot(snapshotOut);
 }
 
 void Vram::ValidateSnapshot() {

@@ -1,5 +1,11 @@
 #include "SpyroData.h"
+#include "Online.h"
 #include "Powers.h"
+
+#include <cmath>
+#include <Windows.h>
+
+void MakeCrater(int craterX, int craterY, int craterZ);
 
 uint32 powers = 0;
 
@@ -13,19 +19,11 @@ void UpdatePowers() {
 	static int tkLockDist = 0;
 	uint32* uintmem = (uint32*) memory;
 
-	int numPlayersTotal = player_count;
-
-	if (playing)
-		numPlayersTotal ++; // Include recorded player
-
-	for (int j = 0; j < numPlayersTotal; j++) {
+	for (int j = 0; j < numPlayers; j++) {
 		Spyro* curSpyro;
 		uint32 curPowers;
 			
-		if (playing && j == numPlayersTotal - 1) { // HACK - use recorded player
-			curSpyro = &recordedFrames[playingFrame].spyro;
-			curPowers = recordedFrames[playingFrame].powers;
-		} else if (j == playerId) { // Local player
+		if (j == localPlayerId) { // Local player
 			curSpyro = spyro;
 			curPowers = powers;
 		} else { // Another player
@@ -48,8 +46,8 @@ void UpdatePowers() {
 			if (mobyModels && mobyModels[0].address && mobyModels[0]->anims[46].address)
 				numHeadbashFrames = mobyModels[0]->anims[46]->numFrames;
 
-			if (curSpyro->main_anim.nextanim == 46 && 
-				curSpyro->main_anim.nextframe >= 12 * numHeadbashFrames / 22 && curSpyro->main_anim.nextframe <= 14 * numHeadbashFrames / 22 && headbashingPlayer == -1) {
+			if (curSpyro->anim.nextAnim == 46 && 
+				curSpyro->anim.nextFrame >= 12 * numHeadbashFrames / 22 && curSpyro->anim.nextFrame <= 14 * numHeadbashFrames / 22 && headbashingPlayer == -1) {
 				headbashingPlayer = j;
 				shockwaveDist = 1000;
 				
@@ -71,7 +69,7 @@ void UpdatePowers() {
 			int dist = Distance(mobys[i].x, mobys[i].y, mobys[i].z, curSpyro->x, curSpyro->y, curSpyro->z);
 			float angle = atan2((float) (mobys[i].y - curSpyro->y), (float) (mobys[i].x - curSpyro->x));
 			uint8 ang1 = (uint8) ToAngle(angle);
-			uint8 ang2 = (uint8) (curSpyro->main_angle.z + curSpyro->head_angle.z) & 0xFF;
+			uint8 ang2 = (uint8) (curSpyro->angle.z + curSpyro->headAngle.z) & 0xFF;
 			int16 angDifference = 0;
 			if (ang1 > ang2)      angDifference = ang1 - ang2;
 			else if (ang2 > ang1) angDifference = ang2 - ang1;
@@ -133,24 +131,24 @@ void UpdatePowers() {
 
 			if (((curPowers & PWR_SUPERBASH) || (curPowers & PWR_ULTRABASH)) && headbashingPlayer == j && killable) {
 				if (dist < shockwaveDist || (curPowers & PWR_ULTRABASH))
-					mobys[i].attack_flags = 0x00950000;
+					mobys[i].attackFlags = 0x00950000;
 			}
 
-			if ((curPowers & PWR_BUTTERFLYBREATH) && mobys[i].attack_flags == 0x00010000 && mobys[i].type != 16 && 
+			if ((curPowers & PWR_BUTTERFLYBREATH) && mobys[i].attackFlags == 0x00010000 && mobys[i].type != 16 && 
 				((!(uintmem[0x0006F9F8 / 4] < 300 && mobys[i].type == 527)) || game != SPYRO3)) { // SHEILA HACK
 				// Butterfly ID: 16
 				Animation null = {0, 0, 0, 0};
 				uint32* uintmem = (uint32*) memory;
 
-				mobys[i].typeData = 0x80000000;
+				mobys[i].extraData = 0x80000000;
 				mobys[i].collisionData = 0;
 				mobys[i].anim = null;
-				mobys[i].anim.nextframe = 1;
+				mobys[i].anim.nextFrame = 1;
 				mobys[i].type = 16;
 				mobys[i].state = 0;
 				//mobys[i]._unknown[0] = 0;
 				//mobys[i]._unknown[1] = 0;
-				mobys[i].animspeed = 0x30;
+				mobys[i].animSpeed = 0x30;
 				mobys[i].animRun = 0xFF;
 
 				uintmem[0x00000000/4] = mobys[i].x;
@@ -163,10 +161,10 @@ void UpdatePowers() {
 
 			// DEATH STARE, deserves more code; doesn't need it though!
 			if ((curPowers & PWR_DEATHSTARE) && dist < 10000 && killable && angDifference <= 5)
-				mobys[i].attack_flags = 0x00950000; // SuperFlame: 00950000 Frozen Altars Laser: 10000000
+				mobys[i].attackFlags = 0x00950000; // SuperFlame: 00950000 Frozen Altars Laser: 10000000
 
 			if ((curPowers & PWR_DEATHFIELD) && dist < 10000 && killable)
-				mobys[i].attack_flags = 0x00950000;
+				mobys[i].attackFlags = 0x00950000;
 
 			if ((curPowers & PWR_REPULSION) && mobys[i].type != 120 && dist <= 8000) { // Don't repel Sparx
 				float repelForce = (8000.0f - (float) dist) / 10.0f;
@@ -217,8 +215,8 @@ void UpdatePowers() {
 			else {
 				// Move object
 				int dist = Distance(mobys[tkObject].x, mobys[tkObject].y, mobys[tkObject].z, curSpyro->x, curSpyro->y, curSpyro->z);
-				float angleRad = ToRad((uint8) curSpyro->head_angle.z + (uint8) curSpyro->main_angle.z);
-				float verAngleRad = ToRad((uint8) curSpyro->head_angle.y + (uint8) curSpyro->main_angle.y);
+				float angleRad = ToRad((uint8) curSpyro->headAngle.z + (uint8) curSpyro->angle.z);
+				float verAngleRad = ToRad((uint8) curSpyro->headAngle.y + (uint8) curSpyro->angle.y);
 				mobys[tkObject].x = curSpyro->x + cos(angleRad) * tkLockDist * cos(verAngleRad);
 				mobys[tkObject].y = curSpyro->y + sin(angleRad) * tkLockDist * cos(verAngleRad);
 				mobys[tkObject].z = curSpyro->z + tkLockDist * sin(verAngleRad);
@@ -277,14 +275,14 @@ void UpdatePowers() {
 			barrelRollTime = 1;
 		}
 
-		if (spyro->main_anim.nextanim != 0x11 && spyro->main_anim.nextanim != 0x21)
+		if (spyro->anim.nextAnim != 0x11 && spyro->anim.nextAnim != 0x21)
 			barrelRollTime = 0;
 
 		if (barrelRollTime) {
 			if (barrelRollDirection == 0) spyroExt->xAngle = (barrelRollTime * 0x1000 / 40) & 0x0FFF;
 			else if (barrelRollDirection == 1) spyroExt->xAngle = -(barrelRollTime * 0x1000 / 40) & 0x0FFF;
 			spyro->z += (int) (sin((float) barrelRollTime / 40.0f * 6.28f) * 75.0f);
-			spyro->main_angle.x = spyroExt->xAngle * 255 / 0x1000;
+			spyro->angle.x = spyroExt->xAngle * 255 / 0x1000;
 
 			barrelRollTime++;
 			if (barrelRollTime >= 40)
@@ -293,7 +291,7 @@ void UpdatePowers() {
 	}
 
 	if (powers & PWR_SANICROLLS) {
-		if (spyro->main_anim.nextanim == 0x16 || spyro->main_anim.nextanim == 0x06) {
+		if (spyro->anim.nextAnim == 0x16 || spyro->anim.nextAnim == 0x06) {
 			spyroExt->yAngle -= 400;
 			sonicSpinningLastFrame = true;
 		} else if (sonicSpinningLastFrame) {
@@ -305,9 +303,9 @@ void UpdatePowers() {
 	if ((powers & PWR_GIRAFFE) && gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
 		SpyroModelHeader* spyroModel = (SpyroModelHeader*) mobyModels[0];
 
-		if (spyroModel->anims[spyro->main_anim.nextanim].address) {
-			for (int i = 0; i < spyroModel->anims[spyro->main_anim.nextanim]->numFrames; i++) {
-				SpyroFrameInfo* frame = &spyroModel->anims[spyro->main_anim.nextanim]->frames[i];
+		if (spyroModel->anims[spyro->anim.nextAnim].address) {
+			for (int i = 0; i < spyroModel->anims[spyro->anim.nextAnim]->numFrames; i++) {
+				SpyroFrameInfo* frame = &spyroModel->anims[spyro->anim.nextAnim]->frames[i];
 
 				frame->headPos = (frame->headPos & ~0x00000FFF) | 0x480;
 			}
@@ -321,9 +319,9 @@ void UpdatePowers() {
 
 		boop = ((GetTickCount() - startTime) % 1000) / 1000.0f * 6.28f;
 
-		if (spyroModel->anims[spyro->main_anim.nextanim].address) {
-			for (int i = 0; i < spyroModel->anims[spyro->main_anim.nextanim]->numFrames; i++) {
-				SpyroFrameInfo* frame = &spyroModel->anims[spyro->main_anim.nextanim]->frames[i];
+		if (spyroModel->anims[spyro->anim.nextAnim].address) {
+			for (int i = 0; i < spyroModel->anims[spyro->anim.nextAnim]->numFrames; i++) {
+				SpyroFrameInfo* frame = &spyroModel->anims[spyro->anim.nextAnim]->frames[i];
 
 				frame->headPos = bitsout((int) (sin(boop) * 100.0f) + 120, 21, 11) | 
 								 bitsout((int) (cos(boop) * 100.0f), 10, 11) | 

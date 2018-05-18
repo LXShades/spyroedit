@@ -10,8 +10,6 @@ const uint16 BUT_UP = 0x0010, BUT_RIGHT = 0x0020, BUT_DOWN = 0x0040, BUT_LEFT = 
 const uint16 BUT_L2 = 0x0100, BUT_R2 = 0x0200, BUT_L1 = 0x0400, BUT_R1 = 0x0800;
 const uint16 BUT_SELECT = 0x0100, BUT_L3 = 0x0200, BUT_R3 = 0x0400, BUT_START = 0x0008;
 
-extern int game;
-
 // Spyro struct definitions follow!
 #pragma pack(push, 1)
 
@@ -39,37 +37,21 @@ struct Angle {
 };
 
 struct Animation {
-	uint8 prevanim, nextanim, prevframe, nextframe;
+	uint8 prevAnim, nextAnim, prevFrame, nextFrame;
 };
 
 struct IntVector {
 	int16 x, y, z;
 };
 
-// X, Y, Z: 80073624, 80073628, 8007362C (signed 32)
-// Main angle: 80073630
-// Head angle: 80073634
-// Spyro's animation: 30073638 (32)
-// Head animations: 8007363C (32).
-// Spyro (and head)'s animation progress: 80073640 (32).
-// Hit (by others) flags: 80073648 (signed 32 but only last two bytes used)
-// Collision stuff, maybe including collision angle. 80073658
-// More collision stuff follows.
-// State: 8007366C (32)
-// 80073670(32): 1 when falling from a jump, 0 otherwise.
-// Something like a state code: 80073674 (32) (Sparx grows a bubble when this is B).
-// 80073678: Unknown, can be used to jump infinitely when frozen at FFFFFFFF or lower.
-// Glide speed: 800736C4 (signed 32)
-// Forward thrust (when charging?): 800736D0 (signed 32)
-// Forward thrust (when moving): 800736D4 (signed 32)
 struct Spyro {
 	int32 x, y, z;
 
-	Angle main_angle;
-	Angle head_angle;
+	Angle angle;
+	Angle headAngle;
 
-	Animation main_anim;
-	Animation head_anim;
+	Animation anim;
+	Animation headAnim;
 
 	uint32 animprogress;
 
@@ -104,13 +86,13 @@ struct SpyroExtended3 {
 };
 
 struct Moby { // Moby size: 0x58
-	int32 typeData; // 0x00
+	int32 extraData; // 0x00
 	int32 unknown; // 0x04
 	int32 collisionData;
 
 	int32 x, y, z; // 0x0C
 
-	uint32 attack_flags; // 0x18
+	uint32 attackFlags; // 0x18
 
 	int8 _null[26]; // 0x1C
 
@@ -120,7 +102,7 @@ struct Moby { // Moby size: 0x58
 
 	Animation anim; //0x3C
 
-	int8 animspeed;   // 0x40
+	int8 animSpeed;   // 0x40
 	int8 _unknown[2]; // 0x41
 	int8 animRun;     // 0x43
 
@@ -130,9 +112,9 @@ struct Moby { // Moby size: 0x58
 
 	int8 quack[3]; // 0x49
 
-	int8 dist_draw; // 0x4C
-	int8 dist_null; // 0x4D
-	int8 dist_hp;   // 0x4E
+	int8 distDraw; // 0x4C
+	int8 distUnknown; // 0x4D
+	int8 distHp;   // 0x4E
 	int8 scaleDown; // 0x4F (Default: 0x20)
 
 	int8 dogtail[8]; // 0x54
@@ -388,26 +370,85 @@ struct CollTri {
 	inline void SetPoints(int myId, int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z);
 };
 
-struct SpyroCollision {
-	uint32 numTriangles;
-	uint32 numUnkn1;
-	uint32 numUnkn2;
-	SpyroPointer<uint16> blockTree;
-	SpyroPointer<uint16> blocks;
-	SpyroPointer<CollTri> triangleData;
-	SpyroPointer<uint16> surfaceType;
-	uint32 etc1;
-	uint32 selfAddressUseless;
-};
+class SpyroCollision {
+public:
+	union {
+		void* address;
 
-struct SpyroCollisionS1 {
+		struct SpyroCollisionS1 {
+			uint32 numTriangles;
+			uint32 numUnkn1;
+			SpyroPointer<uint16> blockTree;
+			SpyroPointer<uint16> blocks;
+			SpyroPointer<CollTri> triangleData;
+			uint32 etc1;
+			uint32 etc2;
+		}* s1;
+
+		struct SpyroCollisionS2S3 {
+			uint32 numTriangles;
+			uint32 numUnkn1;
+			uint32 numUnkn2;
+			SpyroPointer<uint16> blockTree;
+			SpyroPointer<uint16> blocks;
+			SpyroPointer<CollTri> triangleData;
+			SpyroPointer<uint16> surfaceType;
+			uint32 etc1;
+			uint32 selfAddressUseless;
+		}* s2s3;
+	};
+
+	GameName game;
+
+public:
 	uint32 numTriangles;
-	uint32 numUnkn1;
 	SpyroPointer<uint16> blockTree;
 	SpyroPointer<uint16> blocks;
-	SpyroPointer<CollTri> triangleData;
-	uint32 etc1;
-	uint32 etc2;
+	SpyroPointer<CollTri> triangles;
+	SpyroPointer<uint16> surfaceType;
+
+	bool IsValid() {
+		return (address != nullptr);
+	}
+
+	void SetAddress(void* address, GameName game) {
+		this->address = address;
+		this->game = game;
+
+		if (address) {
+			if (game == SPYRO1) {
+				numTriangles = s1->numTriangles;
+				blockTree = s1->blockTree;
+				blocks = s1->blocks;
+			} else {
+				numTriangles = s2s3->numTriangles;
+				blocks = s2s3->blocks;
+				blockTree = s2s3->blockTree;
+				triangles = s2s3->triangleData;
+				surfaceType = s2s3->surfaceType;
+			}
+		}
+	}
+
+	void Reset() {
+		*this = SpyroCollision{0};
+	}
+
+	void CopyToGame() {
+		if (!address)
+			return;
+
+		if (game == SPYRO1) {
+			s1->numTriangles = numTriangles;
+			s1->blockTree = blockTree;
+			s1->blocks = blocks;
+		} else {
+			s2s3->numTriangles = numTriangles;
+			s2s3->blockTree = blockTree;
+			s2s3->triangleData = triangles;
+			s2s3->surfaceType = surfaceType;
+		}
+	}
 };
 
 struct LevelColours {
@@ -475,12 +516,6 @@ enum SpyroEditFileType {
 	SEF_SETTINGS,
 };
 
-extern TexCache texCaches[256];
-extern uint32 numTexCaches;
-extern uint32 numPaletteCaches;
-
-extern Matrix tileMatrices[8];
-
 extern Spyro* spyro;
 extern SpyroExtended3* spyroExt;
 extern void *wadstart;
@@ -500,8 +535,6 @@ extern int32* numMobys;
 
 extern SpyroPointer<ModelHeader>* mobyModels;
 
-extern ObjTexMap objTexMap; // Object texture map generated by SpyroEdit based on moby textures (moby=obj)
-
 extern uint32* levelNames;
 extern int numLevelNames;
 
@@ -516,8 +549,7 @@ extern uint32* skyBackColour;
 extern uint8* sceneOcclusion;
 extern uint8* skyOcclusion;
 
-extern SpyroCollision* collData;
-extern SpyroCollisionS1* s1CollData;
+extern SpyroCollision spyroCollision;
 
 extern CollisionCache collisionCache;
 

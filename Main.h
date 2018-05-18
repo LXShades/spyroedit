@@ -17,19 +17,31 @@
 
 #define MEMPTR(addr) (void*) (((char*) memory) + addr)
 
-// GPU-plugin-compatible VRAM snapshot
-struct GPUSnapshot {
-	unsigned char vram[1024*1024];
-	unsigned long ulControl[256];
-	unsigned long ulStatus;
+enum GameName {
+	UNKNOWN_GAME = 0, 
+	SPYRO1 = 1, 
+	SPYRO2 = 2, 
+	SPYRO3 = 3
 };
 
-enum gname {UNKNOWN_GAME = 0, SPYRO1 = 1, SPYRO2 = 2, SPYRO3 = 3};
-enum gversion {UNKNOWN_VERSION, ORIGINAL = 1, GREATESTHITS = 2, BETA = 3, DEMO = 4};
-enum gregion {UNKNOWN_REGION, NTSC = 1, PAL = 2, NTSCJP = 3};
+enum GameVersion {
+	UNKNOWN_VERSION, 
+	ORIGINAL = 1, 
+	GREATESTHITS = 2, 
+	BETA = 3, 
+	DEMO = 4
+};
 
-extern int game;
-extern int gameVersion, gameRegion;
+enum GameRegion {
+	UNKNOWN_REGION, 
+	NTSC = 1, 
+	PAL = 2, 
+	NTSCJP = 3
+};
+
+extern GameName game;
+extern GameVersion gameVersion;
+extern GameRegion gameRegion;
 
 extern void* memory;
 extern uint8* umem8;
@@ -39,8 +51,6 @@ const uint32 memory_size = 0x00200000;
 
 extern bool keyDown[256];
 extern bool keyPressed[256];
-
-extern GPUSnapshot vramSs;
 
 void MainLoop();
 

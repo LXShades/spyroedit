@@ -199,8 +199,7 @@ void CreateObjectPage() {
 	SendMessage(checkbox_drag, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 }
 
-void ObjectEditorLoop()
-{
+void ObjectEditorLoop() {
 	static int lastobjid = 0;
 	static int reldragx, reldragy, reldragz;
 	static bool lastchecked = 0;
@@ -251,8 +250,8 @@ void ObjectEditorLoop()
 	// Fix anim issue.
 	if (GetObjectID() >= 0) { // Redundant check due to the above return;, but keep just in case
 		return; // Causes crashes sometimes?
-		if (mobys[GetObjectID()].animspeed < 0x30)
-			mobys[GetObjectID()].animspeed = 0x30;
+		if (mobys[GetObjectID()].animSpeed < 0x30)
+			mobys[GetObjectID()].animSpeed = 0x30;
 	}
 }
 

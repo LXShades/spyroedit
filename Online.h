@@ -1,6 +1,6 @@
 #include "Types.h"
 #include "SpyroData.h"
-#include "Main.h"
+#include "Vram.h"
 
 #define NETSTATE_NONE   0
 #define NETSTATE_SERVER 1
@@ -30,7 +30,7 @@ struct Player {
 
 	uint32 powers;
 
-	DWORD lastmessagetime;
+	uint32 lastMessageTime;
 };
 
 struct Savestate {
@@ -84,8 +84,8 @@ extern int localPlayerId;
 
 extern bool isNetworkInitialised;
 
-extern const int netPortMin = 18541;
-extern const int netPortMax = 18545;
+const int netPortMin = 18541;
+const int netPortMax = 18545;
 
 void Host();
 void Join();

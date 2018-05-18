@@ -3,7 +3,7 @@
 #include "Window.h"
 #include "Online.h"
 #include "SpyroData.h"
-#include "Main.h"
+#include "Powers.h"
 
 #include <cstdio> // Debug stuff
 
@@ -19,9 +19,6 @@ int netPort;
 Player players[MAXPLAYERS];
 int numPlayers = 1;
 int localPlayerId = 0;
-
-const int netPortMin = 18541;
-const int netPortMax = 18545;
 
 const int memdumpChunkSize = (0x00200000 / 128);
 
@@ -81,7 +78,7 @@ void NetworkLoop() {
 
 	// Get animation info (frame rate conversion)
 	if (gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
-		uint8 anims[4] = {spyro->main_anim.prevanim, spyro->main_anim.nextanim, spyro->head_anim.prevanim, spyro->head_anim.nextanim};
+		uint8 anims[4] = {spyro->anim.prevAnim, spyro->anim.nextAnim, spyro->headAnim.prevAnim, spyro->headAnim.nextAnim};
 		uint8* numFrames[4] = {&updateMsg.prevAnimNumFrames, &updateMsg.nextAnimNumFrames, &updateMsg.prevHeadAnimNumFrames, &updateMsg.nextHeadAnimNumFrames};
 
 		for (int i = 0; i < 4; i++) {
@@ -104,7 +101,7 @@ void NetworkLoop() {
 		if (mobys[i].state == -1)
 			break;
 
-		if (mobys[i].attack_flags != lastattackflags[i]) {
+		if (mobys[i].attackFlags != lastattackflags[i]) {
 			if (!mobys) {
 				MessageBox(NULL, "No mobys!", "", MB_OK);
 				break;
@@ -115,14 +112,14 @@ void NetworkLoop() {
 
 			msg.msgId = NM_ATTACKFLAGS;
 			msg.objId = i;
-			msg.flags = mobys[i].attack_flags;
+			msg.flags = mobys[i].attackFlags;
 
 			for (int j = 0; j < numPlayers; ++j) {
 				if (j != localPlayerId)
 					SendTo(&msg, sizeof (NmAttackFlag), &players[j].addr);
 			}
 
-			lastattackflags[i] = mobys[i].attack_flags;
+			lastattackflags[i] = mobys[i].attackFlags;
 		}
 	}
 
@@ -148,7 +145,6 @@ void ReceiveMessages() {
 		if (player_id == numPlayers && message_id != NM_JOIN) // You haven't been accepted yet!
 			continue;
 
-		uint32* uintmem = (uint32*) memory;
 		static GPUSnapshot tempGpuSnapshot;
 		static Savestate* playerSavestates[MAXPLAYERS];
 
@@ -185,8 +181,8 @@ void ReceiveMessages() {
 				if (playerSavestates[player_id] == NULL)
 					playerSavestates[player_id] = (Savestate*) malloc(sizeof (Savestate));
 
-				// Setup the savestate to presumably send to the player...? What did this even do
-				GetSnapshot(&tempGpuSnapshot);
+				// Get a snapshot of the savestate we're uploading to the player
+				vram.GetSnapshot(&tempGpuSnapshot);
 
 				memcpy(playerSavestates[player_id]->memory, memory, 0x00200000);
 				playerSavestates[player_id]->snapshot = tempGpuSnapshot;
@@ -205,10 +201,10 @@ void ReceiveMessages() {
 
 				// Convert animation state between PAL/NTSC
 				if (gameState == GAMESTATE_INLEVEL && mobyModels && mobyModels[0].address) {
-					uint8 anims[4] = {updateMsg->spyroData.main_anim.prevanim, updateMsg->spyroData.main_anim.nextanim, 
-									  updateMsg->spyroData.head_anim.prevanim, updateMsg->spyroData.head_anim.nextanim};
-					uint8* frames[4] = {&players[player_id].spyro.main_anim.prevframe, &players[player_id].spyro.main_anim.nextframe, 
-									  &players[player_id].spyro.head_anim.prevframe, &players[player_id].spyro.head_anim.nextframe};
+					uint8 anims[4] = {updateMsg->spyroData.anim.prevAnim, updateMsg->spyroData.anim.nextAnim, 
+									  updateMsg->spyroData.headAnim.prevAnim, updateMsg->spyroData.headAnim.nextAnim};
+					uint8* frames[4] = {&players[player_id].spyro.anim.prevFrame, &players[player_id].spyro.anim.nextFrame, 
+									  &players[player_id].spyro.headAnim.prevFrame, &players[player_id].spyro.headAnim.nextFrame};
 					uint8 numFrames[4] = {updateMsg->prevAnimNumFrames, updateMsg->nextAnimNumFrames, 
 										  updateMsg->prevHeadAnimNumFrames, updateMsg->nextHeadAnimNumFrames};
 
@@ -305,7 +301,7 @@ void ReceiveMessages() {
 						break;
 
 					if (i == msg->objId) {
-						mobys[i].attack_flags = msg->flags;
+						mobys[i].attackFlags = msg->flags;
 						break;
 					}
 				}
@@ -323,7 +319,7 @@ void ReceiveMessages() {
 				mobys[msg->mobyId].z = msg->moby.z;
 				mobys[msg->mobyId].anim = msg->moby.anim;
 				mobys[msg->mobyId].angle = msg->moby.angle;
-				mobys[msg->mobyId].animspeed = msg->moby.animspeed;
+				mobys[msg->mobyId].animSpeed = msg->moby.animSpeed;
 				mobys[msg->mobyId].animRun = msg->moby.animRun;
 				mobys[msg->mobyId].state = 50;msg->moby.state;
 
@@ -331,7 +327,7 @@ void ReceiveMessages() {
 			}
 		}
 
-		players[player_id].lastmessagetime = GetTickCount(); // This guy's still alive.
+		players[player_id].lastMessageTime = GetTickCount(); // This guy's still alive.
 	}
 }
 
@@ -464,7 +460,7 @@ void Join() {
 
 	memcpy(&players[0].addr, &recv_addr, sizeof (Address));
 	memcpy(&players[0].spyro, (void*) ((uint32) memory + 0x00073624), sizeof (Spyro)); // To avoid crashes.
-	players[0].lastmessagetime = GetTickCount();
+	players[0].lastMessageTime = GetTickCount();
 
 	localPlayerId = 1;
 	numPlayers = 2;

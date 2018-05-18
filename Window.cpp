@@ -3,6 +3,8 @@
 #include "SpyroData.h"
 #include "Online.h"
 #include "Main.h"
+#include "SpyroTextures.h"
+#include "Powers.h"
 
 #include <cstdio>
 #include <cmath>
@@ -82,8 +84,7 @@ struct StatusObject {
 };
 
 StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Scene model", (uintptr) &sceneData}, 
-								{NULL, "Sky model", (uintptr) &skyData}, {NULL, "Collision data (Spyro 1)", (uintptr) &s1CollData}, 
-								{NULL, "Collision data (Spyro 2/3)", (uintptr) &collData}, 
+								{NULL, "Sky model", (uintptr) &skyData}, {NULL, "Collision data", (uintptr) &spyroCollision.address}, 
 								{NULL, "Object models", (uintptr) &mobyModels}, 
 								{NULL, "Scene occlusion", (uintptr) &sceneOcclusion}, {NULL, "Sky occlusion", (uintptr) &skyOcclusion}, 
 								{NULL, "Textures (Spyro 1)", (uintptr) &lqTextures}, {NULL, "Textures (Spyro 2/3)", (uintptr) &textures}, 
@@ -409,8 +410,6 @@ void Close_Windows() {
 	ShowWindow(hwndVram, 0);
 }
 
-extern GPUSnapshot vramSs;
-
 void WinLoop() {
 	MSG message;
 	
@@ -456,8 +455,6 @@ void WinLoop() {
 		UpdateTextureWindow();
 
 	if (IsWindowVisible(hwndVram)) {
-		GetSnapshot(&vramSs);
-
 		int viewWidth = 2048, viewHeight = 512+512;
 		HDC drawDc = CreateCompatibleDC(NULL);
 
@@ -480,13 +477,13 @@ void WinLoop() {
 		FillRect(drawDc, &r, (HBRUSH) BLACK_BRUSH);
 		SelectObject(drawDc, (HGDIOBJ) drawBitmap);
 
-		uint16* srcBits = (uint16*) vramSs.vram;
+		uint16* srcBits = vram.GetVram16();
 		int drawPalette = 1;
 		int paletteByteStart = 0;
 
 		// Draw a texture
 		uint32* uintmem = (uint32*) memory;
-		TexDef* curTex = NULL;
+		Tex* curTex = NULL;
 		int numTexs = 0;
 		RECT wndRect;
 		static int paletteX, paletteY;
@@ -1091,8 +1088,6 @@ void UpdateTextureWindow() {
 	static int panX, panY;
 	static int lastMouseX, lastMouseY;
 
-	GetSnapshot(&vramSs);
-
 	// Setup window view
 	RECT derp;
 	GetClientRect(hwndTexture, &derp);
@@ -1152,8 +1147,8 @@ void UpdateTextureWindow() {
 	SelectObject(drawDc, (HGDIOBJ) drawBitmap);
 	FillRect(drawDc, &r, (HBRUSH) LTGRAY_BRUSH);
 
-	uint8* vram8 = (uint8*) vramSs.vram;
-	uint16* vram16 = (uint16*) vramSs.vram;
+	uint8* vram8 = vram.GetVram8();
+	uint16* vram16 = vram.GetVram16();
 
 	// Draw textures
 	uint32* uintmem = (uint32*) memory;

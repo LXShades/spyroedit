@@ -103,5 +103,8 @@
     <None Include="SpyroEdit.def">
       <Filter>DEF</Filter>
     </None>
+    <None Include="SpyroHackingNotes.info">
+      <Filter>SpyroData</Filter>
+    </None>
   </ItemGroup>
 </Project>

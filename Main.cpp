@@ -4,8 +4,9 @@
 #include "Main.h"
 #include "ObjectEdit.h"
 
-int game = UNKNOWN_GAME;
-int gameVersion = UNKNOWN_VERSION, gameRegion = UNKNOWN_REGION;
+GameName game = UNKNOWN_GAME;
+GameVersion gameVersion = UNKNOWN_VERSION;
+GameRegion gameRegion = UNKNOWN_REGION;
 
 void* memory;
 uint8* umem8;
@@ -23,7 +24,6 @@ void MainLoop()
 	UpdateKeys();
 	
 	ObjectEditorLoop();
-	PowersLoop();
 	SpyroLoop();
 }
 

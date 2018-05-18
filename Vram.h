@@ -2,8 +2,14 @@
 #include "Main.h" // GPUSnapshot
 #include "Types.h"
 
-Vram vram;
+// GPU-plugin-compatible VRAM snapshot
+struct GPUSnapshot {
+	unsigned char vram[1024*1024];
+	unsigned long ulControl[256];
+	unsigned long ulStatus;
+};
 
+// VRAM manage class to make everything supa-EZ
 class Vram {
 public:
 	// Gets a VRAM snapshot and returns a pointer to it
@@ -18,11 +24,11 @@ public:
 	uint16* GetHqPalette(uint16 hqPalette);
 	uint16* GetLqPalette(uint16 lqPalette);
 
-	// Called before each frame to update the VRAM cache
-	void PreFrameUpdate();
-	
-	// Called after each frame to flush the cache
+	// Called after each frame to flush pending caches
 	void PostFrameUpdate();
+
+	// Gets a full snapshot of the VRAM
+	void GetSnapshot(GPUSnapshot* snapshotOut);
 
 private:
 	void ValidateSnapshot();
@@ -33,3 +39,5 @@ private:
 	bool8 isValidIn;
 	bool8 isValidOut;
 };
+
+extern Vram vram;

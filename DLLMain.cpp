@@ -1,5 +1,6 @@
 #include "Main.h"
 #include "Types.h"
+#include "Vram.h"
 #include <windows.h>
 
 #define DLLFUNCTION __declspec(dllexport)
@@ -9,8 +10,6 @@
 #define STR(a) #a
 
 extern HMODULE mainModule;
-
-extern int8 vram[1024*1024];
 
 void Startup();
 void Shutdown();

@@ -45,8 +45,7 @@ uint32* skyBackColour;
 uint8* sceneOcclusion;
 uint8* skyOcclusion;
 
-SpyroCollision* collData;
-SpyroCollisionS1* s1CollData;
+SpyroCollision spyroCollision;
 
 uint32* levelNames;
 int numLevelNames;
@@ -107,6 +106,7 @@ void SpyroLoop() {
 			lastLevel = *level;
 	}
 
+	// Do main loop
 	switch (game) {
 		case SPYRO1:
 			UpdateLiveGen();
@@ -120,6 +120,9 @@ void SpyroLoop() {
 			UpdateLiveGen();
 			break;
 	}
+
+	spyroCollision.CopyToGame();
+	vram.PostFrameUpdate();
 
 	// Check level and gamestate changes
 	lastGameState = gameState;
@@ -193,54 +196,7 @@ void SpyroOnLevelEntry() {
 
 	// Auto-load level textures
 	// Update the texture cache
-	GetSnapshot(&vramSs);
-	
-	uint8* vram8 = (uint8*) &vramSs.vram;
-	uint16* vram16 = (uint16*) &vramSs.vram;
-
-	numTexCaches = *numTextures;
-	for (int i = 0; i < *numTextures; i++) {
-		TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
-		TexLq* curLq = textures ? textures[i].lqData : lqTextures[i].lqData;
-
-		texCaches[i].Reset();
-
-		for (int tile = 0; tile < 4; tile++) {
-			int paletteByteStart = curHq[tile].palette * 32;
-			uint16* palette = &vram16[paletteByteStart / 2];
-			int numTilesDone = 0;
-			uint32 colours[256];
-			TexCacheTile* tileCache = &texCaches[i].tiles[tile];
-
-			// Read palette data
-			for (int j = 0; j < 256; j++)
-				colours[j] = MAKECOLOR32(GETR16(palette[j]), GETG16(palette[j]), GETB16(palette[j]));
-
-			int orientation = curHq[tile].unknown>>4 & 7;
-			int xx = tileMatrices[orientation].xx, xy = tileMatrices[orientation].xy;
-			int yx = tileMatrices[orientation].yx, yy = tileMatrices[orientation].yy;
-			int srcXStart = curHq[tile].GetXMin(), srcYStart = curHq[tile].GetYMin();
-			int xAdd = 0, yAdd = 0;
-
-			if (xx < 0 || xy < 0)
-				xAdd = 31;
-			if (yx < 0 || yy < 0)
-				yAdd = 31;
-
-			// Read colours into cache tile
-			for (int y = 0; y < 32; y++) {
-				for (int x = 0; x < 32; x++)
-					tileCache->bitmap[(x * yx + y * yy + yAdd) * 32 + x * xx + y * xy + xAdd] = colours[vram8[(y + srcYStart) * 2048 + srcXStart + x]];
-			}
-
-			tileCache->minX = curHq[tile].GetXMin();
-			tileCache->maxX = curHq[tile].GetXMax();
-			tileCache->minY = curHq[tile].GetYMin();
-			tileCache->maxY = curHq[tile].GetYMax();
-			tileCache->sizeX = tileCache->maxX - tileCache->minX + 1;
-			tileCache->sizeY = tileCache->maxY - tileCache->minY + 1;
-		}
-	}
+	RefreshTextureCache();
 			
 	// If autoload is enabled, do the thing
 	if (SendMessage(checkbox_autoLoad, BM_GETCHECK, 0, 0) == BST_CHECKED) {
@@ -278,7 +234,7 @@ void UpdateSpyroPointers() {
 	level = NULL; spyro = NULL;
 	skyData = NULL; skyNumSectors = NULL; skyBackColour = NULL;
 	levelNames = NULL; numLevelNames = 0;
-	sceneData = NULL; collData = NULL; s1CollData = NULL;
+	sceneData = NULL; 
 	sceneOcclusion = NULL; skyOcclusion = NULL;
 	spyroDrawFuncAddress = 0;
 	//spyroModelPointer = 0;
@@ -289,6 +245,7 @@ void UpdateSpyroPointers() {
 	gameState = GAMESTATE_NOTFOUND;
 	mobyModels = NULL;
 	levelArea = NULL;
+	spyroCollision.Reset();
 
 	uint32 lastPois[POI_NUMTYPES];
 	for (int poi = 0; poi < POI_NUMTYPES; poi++) {
@@ -354,7 +311,7 @@ void UpdateSpyroPointers() {
 					uint32 addr = BUILDADDR(uintmem[i + 1], uintmem[i + 2]);
 				
 					if (uintmem[addr / 4 + 8] >= 0x80000000 && uintmem[addr / 4 + 8] < 0x80200000) {
-						textures = (TexDef*) &bytemem[STRIPADDR(uintmem[addr / 4 + 8])];
+						textures = (Tex*) &bytemem[STRIPADDR(uintmem[addr / 4 + 8])];
 						numTextures = (int*) &bytemem[addr + 0x24];
 						spyroPois[POI_TEXTURES] = i;
 					}
@@ -369,7 +326,7 @@ void UpdateSpyroPointers() {
 
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
 						sceneData = (SpyroScene*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
-						collData = (SpyroCollision*) &bytemem[uintmem[collAddr/4] & 0x003FFFFF];
+						spyroCollision.SetAddress(&bytemem[uintmem[collAddr/4] & 0x003FFFFF], SPYRO2);
 						sceneOcclusion = (uint8*)&bytemem[uintmem[addr/4+2] & 0x003FFFFF];
 						skyOcclusion = (uint8*)&bytemem[uintmem[addr/4+3] & 0x003FFFFF];
 						spyroPois[POI_SCENE] = i;
@@ -391,17 +348,17 @@ void UpdateSpyroPointers() {
 					}
 
 					if ((uintmem[addr/4+6] & 0x003FFFFF) > 0 && (uintmem[addr/4+6] & 0x003FFFFF) < 0x00200000) {
-						lqTextures = (LqTexDef*) &bytemem[uintmem[addr/4+6] & 0x003FFFFF];
+						lqTextures = (LqTex*) &bytemem[uintmem[addr/4+6] & 0x003FFFFF];
 						spyroPois[POI_LQTEXTURES] = i;
 					}
 
 					if ((uintmem[addr/4+7] & 0x003FFFFF) > 0 && (uintmem[addr/4+7] & 0x003FFFFF) < 0x00200000) {
-						hqTextures = (HqTexDef*) &bytemem[uintmem[addr/4+7] & 0x003FFFFF];
+						hqTextures = (HqTex*) &bytemem[uintmem[addr/4+7] & 0x003FFFFF];
 						spyroPois[POI_HQTEXTURES] = i;
 					}
 
 					if ((uintmem[addr/4+11] & 0x003FFFFF) > 0 && (uintmem[addr/4+11] & 0x003FFFFF) < 0x00200000) {
-						s1CollData = (SpyroCollisionS1*) &bytemem[uintmem[addr/4+11] & 0x003FFFFF];
+						spyroCollision.SetAddress(&bytemem[uintmem[addr/4+11] & 0x003FFFFF], SPYRO1);
 						spyroPois[POI_COLLISION] = i;
 					}
 
@@ -621,8 +578,6 @@ void UpdateSpyroPointers() {
 	jokerPressed = (joker ^ lastJoker) & joker;
 }
 
-void MakeCrater(int craterX, int craterY, int craterZ);
-
 #define BACKUPLENGTH 600
 
 Spyro spyroTrail[BACKUPLENGTH];
@@ -756,8 +711,8 @@ void MultiplayerLoop() {
 		// Check player data--it must be ensured that they don't use invalid or unavailable animations
 		if (spyroModelPointer) {
 			uint32 spyroModel = STRIPADDR(uintmem[spyroModelPointer / 4]);
-			uint8* animList[] = {&curDrawSpyro->main_anim.nextanim, &curDrawSpyro->main_anim.prevanim, &curDrawSpyro->head_anim.nextanim, &curDrawSpyro->head_anim.prevanim};
-			uint8* frameList[] = {&curDrawSpyro->main_anim.nextframe, &curDrawSpyro->main_anim.prevframe, &curDrawSpyro->head_anim.nextframe, &curDrawSpyro->head_anim.prevframe};
+			uint8* animList[] = {&curDrawSpyro->anim.nextAnim, &curDrawSpyro->anim.prevAnim, &curDrawSpyro->headAnim.nextAnim, &curDrawSpyro->headAnim.prevAnim};
+			uint8* frameList[] = {&curDrawSpyro->anim.nextFrame, &curDrawSpyro->anim.prevFrame, &curDrawSpyro->headAnim.nextFrame, &curDrawSpyro->headAnim.prevFrame};
 			
 			for (int i = 0; i < sizeof (animList) / sizeof (animList[0]); i++) {
 				if (!uintmem[spyroModel / 4 + *animList[i]])

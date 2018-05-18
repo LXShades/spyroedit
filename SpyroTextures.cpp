@@ -6,18 +6,6 @@
 #include <Windows.h>
 #include <cstdio> // sprintf
 
-struct BmpInfo {
-	uint32 width, height;
-	uint8 bitsPerColour;
-
-	union {
-		uint32* data32;
-		uint16* data16;
-		uint8* data8;
-	};
-	RGBQUAD palette[256]; // only applicable if bitsPerColour <= 8
-};
-
 TexCache texCaches[256];
 uint32 numTexCaches = 0;
 uint32 numPaletteCaches = 0;
@@ -62,13 +50,28 @@ void SaveTexturesAsSingle();
 void LoadObjectTextures();
 void UpdateObjTexMap();
 
-TexDef* textures;
+Tex* textures;
 int32* numTextures;
 
-LqTexDef* lqTextures;
-HqTexDef* hqTextures;
+LqTex* lqTextures;
+HqTex* hqTextures;
 
 uint32 texEditFlags = TEF_GENERATEPALETTES | TEF_SHUFFLEPALETTES | TEF_AUTOLQ;
+
+struct BmpInfo {
+	uint32 width, height;
+	uint8 bitsPerColour;
+
+	union {
+		uint32* data32;
+		uint16* data16;
+		uint8* data8;
+	};
+	RGBQUAD palette[256]; // only applicable if bitsPerColour <= 8
+};
+bool LoadBmp32(BmpInfo* bmpOut, const char* bmpName);
+bool SaveBmp(BmpInfo* info, const char* bmpName);
+void FreeBmp(BmpInfo* info);
 
 void SaveTextures() {
 	if (texEditFlags & TEF_SEPARATE)
@@ -821,8 +824,8 @@ void LoadObjectTextures() {
 	if (!LoadBmp32(&bmp, filename))
 		return;
 	
-	uint16* vram16 = (uint16*) vramSs.vram;
-	uint8* vram8 = (uint8*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
+	uint8* vram8 = vram.GetVram8();
 	const int vramWidth = 1024;
 
 	// Iterate through every palette (NOTE: despite this for loop's appearance, we intend to iterate through palettes first, not textures)
@@ -1269,6 +1272,55 @@ void UpdateObjTexMap() {
 	objTexMap.height = bmpY + maxRowHeight;
 }
 
+void RefreshTextureCache() {
+	uint8* vram8 = vram.GetVram8();
+	uint16* vram16 = vram.GetVram16();
+
+	numTexCaches = *numTextures;
+	for (int i = 0; i < *numTextures; i++) {
+		TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
+		TexLq* curLq = textures ? textures[i].lqData : lqTextures[i].lqData;
+
+		texCaches[i].Reset();
+
+		for (int tile = 0; tile < 4; tile++) {
+			int paletteByteStart = curHq[tile].palette * 32;
+			uint16* palette = &vram16[paletteByteStart / 2];
+			int numTilesDone = 0;
+			uint32 colours[256];
+			TexCacheTile* tileCache = &texCaches[i].tiles[tile];
+
+			// Read palette data
+			for (int j = 0; j < 256; j++)
+				colours[j] = MAKECOLOR32(GETR16(palette[j]), GETG16(palette[j]), GETB16(palette[j]));
+
+			int orientation = curHq[tile].unknown>>4 & 7;
+			int xx = tileMatrices[orientation].xx, xy = tileMatrices[orientation].xy;
+			int yx = tileMatrices[orientation].yx, yy = tileMatrices[orientation].yy;
+			int srcXStart = curHq[tile].GetXMin(), srcYStart = curHq[tile].GetYMin();
+			int xAdd = 0, yAdd = 0;
+
+			if (xx < 0 || xy < 0)
+				xAdd = 31;
+			if (yx < 0 || yy < 0)
+				yAdd = 31;
+
+			// Read colours into cache tile
+			for (int y = 0; y < 32; y++) {
+				for (int x = 0; x < 32; x++)
+					tileCache->bitmap[(x * yx + y * yy + yAdd) * 32 + x * xx + y * xy + xAdd] = colours[vram8[(y + srcYStart) * 2048 + srcXStart + x]];
+			}
+
+			tileCache->minX = curHq[tile].GetXMin();
+			tileCache->maxX = curHq[tile].GetXMax();
+			tileCache->minY = curHq[tile].GetYMin();
+			tileCache->maxY = curHq[tile].GetYMax();
+			tileCache->sizeX = tileCache->maxX - tileCache->minX + 1;
+			tileCache->sizeY = tileCache->maxY - tileCache->minY + 1;
+		}
+	}
+}
+
 void CompleteLQPalettes() {
 	UpdatePaletteList();
 
@@ -1489,7 +1541,7 @@ void PinkMode() {
 	
 	UpdatePaletteList();
 
-	uint16* vram16 = (uint16*) vramSs.vram;
+	uint16* vram16 = vram.GetVram16();
 	for (int i = 0; i < numPalettes; i ++) {
 		if (paletteTypes[i] == PT_HQ) {
 			uint16* palette = &vram16[palettes[i] / 2];
