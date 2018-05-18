@@ -1,5 +1,7 @@
-typedef struct
-{
+#pragma once
+#include <Windows.h>
+
+typedef struct {
 	int type;
 	int offset;
 

@@ -1,3 +1,4 @@
+#pragma once
 #include "Types.h"
 #include "SpyroData.h"
 #include "Vram.h"

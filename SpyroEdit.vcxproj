@@ -40,11 +40,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetName>gpuSpyroEdit</TargetName>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\Sudden Death\GenLib\Source\</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>gpuSpyroEdit</TargetName>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\Sudden Death\GenLib\Source\</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -54,9 +54,8 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <OutputFile>C:\Users\User\Desktop\Emulation\ePSXe\plugins\$(TargetName)$(TargetExt)</OutputFile>
       <ModuleDefinitionFile>SpyroEdit.def</ModuleDefinitionFile>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;ws2_32.lib;comctl32.lib;comdlg32.lib;C:\Users\User\Desktop\Sudden Death\GenLib\Debug\genlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;ws2_32.lib;comctl32.lib;comdlg32.lib;GenLib\lib\x86\genlib_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -66,6 +65,12 @@
       <Message>
       </Message>
     </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>start distribute.bat</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Running distribute.bat</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -79,45 +84,43 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;ws2_32.lib;comctl32.lib;comdlg32.lib;C:\Users\User\Desktop\Sudden Death\GenLib\Debug\genlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;ws2_32.lib;comctl32.lib;comdlg32.lib;GenLib\lib\x86\genlib_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>C:\Users\User\Desktop\Emulation\ePSXe\plugins\$(TargetName)$(TargetExt)</OutputFile>
       <ModuleDefinitionFile>SpyroEdit.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenError.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenFile.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenLive.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenLiveImp.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenObject.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenState.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenStateTypes.h" />
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenType.h" />
-    <ClInclude Include="ObjectEdit.h" />
-    <ClInclude Include="Online.h" />
-    <ClInclude Include="Powers.h" />
-    <ClInclude Include="SpyroData.h" />
-    <ClInclude Include="Main.h" />
-    <ClInclude Include="SpyroTextures.h" />
-    <ClInclude Include="Types.h" />
-    <ClInclude Include="Vram.h" />
-    <ClInclude Include="Window.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="DLLMain.cpp" />
-    <ClCompile Include="Powers.cpp" />
-    <ClCompile Include="SpyroLiveGen.cpp" />
-    <ClCompile Include="ObjectEdit.cpp" />
-    <ClCompile Include="Online.cpp" />
-    <ClCompile Include="SpyroData.cpp" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="SpyroTextures.cpp" />
-    <ClCompile Include="Vram.cpp" />
-    <ClCompile Include="Window.cpp" />
+    <ClInclude Include="GenLib\include\GenError.h" />
+    <ClInclude Include="GenLib\include\GenFile.h" />
+    <ClInclude Include="GenLib\include\GenLive.h" />
+    <ClInclude Include="GenLib\include\GenObject.h" />
+    <ClInclude Include="GenLib\include\GenState.h" />
+    <ClInclude Include="GenLib\include\GenStateTypes.h" />
+    <ClInclude Include="GenLib\include\GenType.h" />
+    <ClInclude Include="Source\Main.h" />
+    <ClInclude Include="Source\ObjectEdit.h" />
+    <ClInclude Include="Source\Online.h" />
+    <ClInclude Include="Source\Powers.h" />
+    <ClInclude Include="Source\SpyroData.h" />
+    <ClInclude Include="Source\SpyroTextures.h" />
+    <ClInclude Include="Source\Types.h" />
+    <ClInclude Include="Source\Vram.h" />
+    <ClInclude Include="Source\Window.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="SpyroEdit.def" />
-    <None Include="SpyroHackingNotes.info" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\DLLMain.cpp" />
+    <ClCompile Include="Source\Main.cpp" />
+    <ClCompile Include="Source\ObjectEdit.cpp" />
+    <ClCompile Include="Source\Online.cpp" />
+    <ClCompile Include="Source\Powers.cpp" />
+    <ClCompile Include="Source\SpyroData.cpp" />
+    <ClCompile Include="Source\SpyroLiveGen.cpp" />
+    <ClCompile Include="Source\SpyroTextures.cpp" />
+    <ClCompile Include="Source\Vram.cpp" />
+    <ClCompile Include="Source\Window.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

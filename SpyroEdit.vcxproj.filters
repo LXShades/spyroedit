@@ -1,110 +1,104 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenError.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenFile.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenLive.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenLiveImp.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenObject.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenState.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenStateTypes.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Sudden Death\GenLib\Source\GenType.h">
-      <Filter>LiveGenesis</Filter>
-    </ClInclude>
-    <ClInclude Include="SpyroData.h">
-      <Filter>SpyroData</Filter>
-    </ClInclude>
-    <ClInclude Include="ObjectEdit.h">
-      <Filter>SpyroData</Filter>
-    </ClInclude>
-    <ClInclude Include="Main.h">
+    <ClInclude Include="Source\Main.h">
       <Filter>Main</Filter>
     </ClInclude>
-    <ClInclude Include="Window.h">
+    <ClInclude Include="Source\Types.h">
       <Filter>Main</Filter>
     </ClInclude>
-    <ClInclude Include="Types.h">
+    <ClInclude Include="Source\Vram.h">
       <Filter>Main</Filter>
     </ClInclude>
-    <ClInclude Include="Online.h">
-      <Filter>SpyroData</Filter>
+    <ClInclude Include="Source\ObjectEdit.h">
+      <Filter>Spyro</Filter>
     </ClInclude>
-    <ClInclude Include="SpyroTextures.h">
-      <Filter>SpyroData</Filter>
+    <ClInclude Include="Source\Online.h">
+      <Filter>Spyro</Filter>
     </ClInclude>
-    <ClInclude Include="Powers.h">
-      <Filter>SpyroData</Filter>
+    <ClInclude Include="Source\Powers.h">
+      <Filter>Spyro</Filter>
     </ClInclude>
-    <ClInclude Include="Vram.h">
+    <ClInclude Include="Source\SpyroData.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroTextures.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenError.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenFile.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenLive.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenObject.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenState.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenStateTypes.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenType.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Window.h">
       <Filter>Main</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="SpyroData.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="SpyroTextures.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="SpyroLiveGen.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="ObjectEdit.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="Main.cpp">
-      <Filter>Main</Filter>
-    </ClCompile>
-    <ClCompile Include="DLLMain.cpp">
-      <Filter>Main</Filter>
-    </ClCompile>
-    <ClCompile Include="Window.cpp">
-      <Filter>Main</Filter>
-    </ClCompile>
-    <ClCompile Include="Online.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="Powers.cpp">
-      <Filter>SpyroData</Filter>
-    </ClCompile>
-    <ClCompile Include="Vram.cpp">
-      <Filter>Main</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="DEF">
       <UniqueIdentifier>{d745182c-dd2a-44ed-afa4-0c351ccb11c1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="LiveGenesis">
-      <UniqueIdentifier>{eb8009b4-00bd-428e-9c1f-1b3006e732a2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="SpyroData">
-      <UniqueIdentifier>{4c2e007f-a071-4c2b-83c1-d08adde5f03f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Main">
       <UniqueIdentifier>{16b22edf-2413-42d9-a68b-168bd87f653a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Spyro">
+      <UniqueIdentifier>{4c2e007f-a071-4c2b-83c1-d08adde5f03f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GenLib">
+      <UniqueIdentifier>{eb8009b4-00bd-428e-9c1f-1b3006e732a2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="SpyroEdit.def">
       <Filter>DEF</Filter>
     </None>
-    <None Include="SpyroHackingNotes.info">
-      <Filter>SpyroData</Filter>
-    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\DLLMain.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Main.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Vram.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\ObjectEdit.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Online.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Powers.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroData.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroLiveGen.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroTextures.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Window.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

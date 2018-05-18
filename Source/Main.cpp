@@ -1,4 +1,4 @@
-#include <windows.h> // CALLBACK =/
+#include <cmath>
 
 #include "SpyroData.h"
 #include "Main.h"
@@ -42,7 +42,6 @@ void UpdateKeys()
 	}
 }
 
-#include <cmath>
 int Distance(int x1, int y1, int z1, int x2, int y2, int z2)
 {
 	return (int) (sqrt(((float) (x2 - x1) / 10000.0f * (x2 - x1)) + ((float) (y2 - y1) / 10000.0f * (y2 - y1)) + ((float) (z2 - z1) / 10000.0f * (z2 - z1))) * 100.0f);
