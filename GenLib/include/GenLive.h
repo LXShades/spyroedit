@@ -20,12 +20,12 @@ class ILiveGen {
 	public:
 		virtual void Update() = 0;
 
-		virtual bool Connect(const LgAddress* addr) = 0;
+		virtual bool Connect(const LgAddress& addr) = 0;
 		virtual void DisconnectNodes(lgnodemask nodeMask = LGALLNODES) = 0;
 
-		virtual void SendState(const GenState* stateIn, lgnodemask nodeMask = LGALLNODES) = 0;
-		virtual void SendState(const GenStateData* stateDataIn, lgnodemask nodeMask = LGALLNODES) = 0;
-		virtual void SendStateDirect(genid id, GenStateType type, const GenElements* elements, lgnodemask nodeMask = LGALLNODES) = 0;
+		virtual void SendState(const GenState& stateIn, lgnodemask nodeMask = LGALLNODES) = 0;
+		virtual void SendState(const GenSubstate& stateDataIn, lgnodemask nodeMask = LGALLNODES) = 0;
+		virtual void SendStateDirect(genid id, GenStateType type, const GenElements& elements, lgnodemask nodeMask = LGALLNODES) = 0;
 		virtual bool GetState(GenState* stateOut, lgnodemask* nodeMaskOut, lgnodemask nodeMaskIn = LGALLNODES) = 0;
 		
 		virtual genu16 GetLocalPort() const = 0;
@@ -44,19 +44,20 @@ class ILiveGen {
 };
 
 struct LgAddress {
-	// interesting bug: having a parameter constructor but no default constructor caused this not to compile, unless it felt like it
-	inline LgAddress() : addr32(0), port(0) {};
+	inline LgAddress() = default;
 	inline LgAddress(genu8 ip1, genu8 ip2, genu8 ip3, genu8 ip4, genu16 _port) : addr32(ip4 << 24 | ip3 << 16 | ip2 << 8 | ip1), port(_port) {};
+	inline LgAddress(const char* address) : addr32(0xFFFFFFFF), port(0) {SetIp(address);};
+	inline LgAddress(const char* address, genu16 port_) : addr32(0xFFFFFFFF), port(0) {if (SetIp(address)) port = port_;};
 
 	// functions
 	bool SetIp(const char* address); // May also set port with a colon :
 	void GetIp(      char* address, bool includePort) const;
 
-	void CloneFromNetNode(const NetNode* netNodeIn);
+	void CloneFromNetNode(const NetNode& netNodeIn);
 	void CloneToNetNode(NetNode* netNodeOut) const;
 
-	inline bool Compare(const LgAddress* other) const {
-		return (addr32 == other->addr32 && port == other->port);
+	inline bool operator==(const LgAddress& other) const {
+		return (addr32 == other.addr32 && port == other.port);
 	}
 
 	// vars

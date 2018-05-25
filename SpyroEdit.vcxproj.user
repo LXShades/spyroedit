@@ -3,8 +3,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerDebuggerType>NativeOnly</LocalDebuggerDebuggerType>
-    <LocalDebuggerCommand>..\ePSXe\ePSXe.exe</LocalDebuggerCommand>
-    <LocalDebuggerWorkingDirectory>D:\Emulation\ePSXe</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommand>C:\Users\User\Desktop\Emulation\ePSXe\ePSXe.exe</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>C:\Users\User\Desktop\Emulation\ePSXe</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LocalDebuggerCommand>rundebug.bat</LocalDebuggerCommand>

@@ -28,7 +28,7 @@
 #define GENID_SPYROMODELMOD 22331
 #define GENID_SPYROINSTANCE 22334
 
-#define MOBYPOSSCALE 0.000625f
+#define MOBYPOSITIONSCALE 0.000625f
 #define MOBYSPHERESIZE 0.15f
 
 uint32 mobyVertAdjustTable[127] = {
@@ -49,15 +49,11 @@ ILiveGen* live;
 GenScene genScene;
 GenModel* genSectors[256];
 
-GenMesh* genMobys[768];
-GenMod* genMobyMods[768];
-GenModel* genMobyModels[768];
-
 bool genSceneCreated = false;
 
 extern HWND edit_genIp;
 
-void SendLiveGenMobys();
+void SendLiveGenMobyInstances();
 void SetupCollisionLinks();
 void RebuildCollisionTree();
 void UpdateFlaggedMemory();
@@ -98,16 +94,12 @@ bool ConnectLiveGen() {
 	if (!live)
 		return false;
 
-	LgAddress addr;
-	char addrText[20] = {0};
+	char ipAddress[20] = {0};
 
-	SendMessageA(edit_genIp, WM_GETTEXT, 20, (LPARAM) addrText);
-	addrText[19] = 0;
+	SendMessageA(edit_genIp, WM_GETTEXT, 20, (LPARAM) ipAddress);
+	ipAddress[19] = 0;
 
-	addr.SetIp(addrText);
-	addr.port = 6253;
-
-	if (!live->Connect(&addr)) {
+	if (!live->Connect(LgAddress(ipAddress, 6253))) {
 		DestroyLiveGen(live);
 		live = NULL;
 		return false;
@@ -137,12 +129,11 @@ void UpdateLiveGen() {
 	// Receive updates from Genesis and send them to genScene
 	GenState liveStatePack, liveStatePack2;
 	while (live->GetState(&liveStatePack, NULL, LGALLNODES))
-		genScene.SetState(liveStatePack.GetStateData());
+		genScene.SetState(&liveStatePack.GetSubstate());
 
 	// Update and validate objects that have been changed since the receive
 	// They may or may not be invalidated later on, but by the end of this function they must be validated so that they're not re-sent to Genesis unless desired
 	// That isn't actually programmed to happen anyway but uhhh it's on the list? Maybe!?!!?!? WHAT AM I DOING
-	int test = genScene.GetNumObjects();
 	for (GenObject* obj = genScene.GetNextChangedObject(NULL); obj != NULL; obj = genScene.GetNextChangedObject(obj)) {
 		genid objId = obj->GetId();
 		GenObjType objType = obj->GetObjType();
@@ -152,8 +143,6 @@ void UpdateLiveGen() {
 		if (objId >= GENID_SCENESECTORMODEL && objId <= GENID_SCENESECTORMODEL + 256 && objType == GENOBJ_MODEL) {
 			// in case the mods have changed
 			BuildSpyroSector(objId - GENID_SCENESECTORMODEL);
-
-			obj->ValidateAll();
 		}
 
 		// Check if a model's mesh has changed
@@ -165,8 +154,6 @@ void UpdateLiveGen() {
 						BuildSpyroSector(i);
 				}
 			}
-
-			obj->ValidateAll();
 		}
 
 		// Update moby if applicable
@@ -174,45 +161,25 @@ void UpdateLiveGen() {
 			int mobyId = objId - GENID_MOBYINSTANCES;
 			float zSubtract = MOBYSPHERESIZE;
 			
-			if (mobys[mobyId].type < 768 && mobyModels && (mobyModels[mobys[mobyId].type].address & 0x80000000))
+			if (mobys[mobyId].type < 768 && genScene.GetModelById(GENID_MOBYMODELS + mobys[mobyId].type))
 				zSubtract = 0.0f;
 
 			const GenTransform* trans = ((GenInst*)obj)->GetTransform();
 			mobys[mobyId].angle.z = (int) (trans->localRotation.z / 6.28f * 255.0f);
-			mobys[mobyId].x = (int) (trans->localTranslation.x / MOBYPOSSCALE);
-			mobys[mobyId].y = (int) (trans->localTranslation.y / MOBYPOSSCALE);
-			mobys[mobyId].z = (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSSCALE);
-			
-			obj->ValidateAll();
-		}
-
-		// Move mobys
-		if (objId >= GENID_MOBYMODELS && objId <= GENID_MOBYMODELS + 768) {
-			GenModel* genModel = genScene.GetModelById(objId);
-
-			if (genModel) {
-				// Update mesh in case the mods changed
-				genMobys[objId - GENID_MOBYMODELS] = genModel->GetMesh();
-
-				if (genModel->GetMesh())
-					obj->ValidateAll();
-			}
+			mobys[mobyId].x = (int) (trans->localTranslation.x / MOBYPOSITIONSCALE);
+			mobys[mobyId].y = (int) (trans->localTranslation.y / MOBYPOSITIONSCALE);
+			mobys[mobyId].z = (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSITIONSCALE);
 		}
 
 		// Move Spyro
 		if (objId == GENID_SPYROINSTANCE) {
 			const GenTransform* trans = ((GenInst*)obj)->GetTransform();
-			spyro->x = (int) (trans->localTranslation.x / MOBYPOSSCALE);
-			spyro->y = (int) (trans->localTranslation.y / MOBYPOSSCALE);
-			spyro->z = (int) ((trans->localTranslation.z - MOBYSPHERESIZE) / MOBYPOSSCALE);
-			obj->ValidateAll();
+			spyro->x = (int) (trans->localTranslation.x / MOBYPOSITIONSCALE);
+			spyro->y = (int) (trans->localTranslation.y / MOBYPOSITIONSCALE);
+			spyro->z = (int) ((trans->localTranslation.z - MOBYSPHERESIZE) / MOBYPOSITIONSCALE);
 		}
 
 		obj->ValidateAll();
-		/*for (int i = 0; i < 768; i++) {
-			if (obj == genMobys[i])
-				BuildSpyroMobyModel(i, 0, 0);
-		}*/
 	}
 
 /*			} else if (stateType == GENMOD_MESHDATA && stateId == GENID_COLLISIONDATAMOD && collData) {
@@ -291,11 +258,6 @@ void LiveGenOnLevelEntry() {
 			inst->SetMaterial(GENID_SCENETEXTURE);
 		}
 
-		int nums[GENOBJ_NUMTYPES] = {0};
-		for (int i = 0; i < genScene.GetNumObjects(); i++) {
-			nums[genScene.GetObjectByIndex(i)->GetObjType()]++;
-		}
-
 		genSceneCreated = true;
 	}
 
@@ -318,42 +280,41 @@ void SendLiveGenScene() {
 	if (!live)
 		return;
 	
-	GenElements* data = (GenElements*) rawDataHackyStacky; // use a fixed-size stack portion for all our data today~
+	GenElements& data = *((GenElements*)rawDataHackyStacky); // use a fixed-size stack portion for all our data today~
 
 	// Send scene texture
-	data->type = GENTYPE_CSTRING;
-	GetLevelFilename(data->s8, SEF_TEXTURES);
-	data->numElements = strlen(data->s8) + 1;
+	data.type = GENTYPE_CSTRING;
+	GetLevelFilename(data.s8, SEF_TEXTURES);
+	data.numElements = strlen(data.s8) + 1;
 	
-	if (FILE* texExists = fopen(data->s8, "rb"))
+	if (FILE* texExists = fopen(data.s8, "rb"))
 		fclose(texExists); // no need to save texture file; it already exists
 	else
 		SaveTexturesAsSingle(); // save the textures
 
 	live->SendStateDirect(GENID_SCENETEXTURE, GENMAT_SOURCEFILE, data);
 
-	// Send scenery data
-	// Obtain a GenState for the entire scene and send all at once
-	// This might be slow for now, compression and memory allocation optimisation may come in the future
-	// I CHANGED MY MIND. It's more helpful to see the level while it transfer, so fragment it
+	// Send each sector as a GenState. Includes an instance, model and edit modifier
 	for (int i = 0; i < sceneData->numSectors; i++) {
-		GenState instState(GENID_SCENESECTORINSTANCE + i, GENCOMMON_MULTIPLE), modState(GENID_SCENESECTORMOD + i, GENCOMMON_MULTIPLE), 
-				modelState(GENID_SCENESECTORMODEL + i, GENCOMMON_MULTIPLE);
 		GenState meshState(0xFFFFFFFF, GENCOMMON_MULTIPLE);
 		GenState combinedState(0, GENCOMMON_MULTIPLE);
-		GenState* stateList[] = {&instState, &modState, &modelState, &meshState};
+		
+		// Obtain states for instance, modifier and model from the global scene
+		GenState instState = genScene.GenObject::GetState(GENID_SCENESECTORINSTANCE + i, GENCOMMON_MULTIPLE);
+		GenState modState = genScene.GenObject::GetState(GENID_SCENESECTORMOD + i, GENCOMMON_MULTIPLE);
+		GenState modelState = genScene.GenObject::GetState(GENID_SCENESECTORMODEL + i, GENCOMMON_MULTIPLE);
 
-		for (int i = 0; i < 3; i++)
-			genScene.GetState(stateList[i]);
-
+		// Modifiers erm.... set the mesh states so that they have the, uh... same state as...what?
 		if (GenMod* mod = genScene.GetModById(GENID_SCENESECTORMOD + i)) {
 			meshState.SetInfo(mod->GetMeshId(), GENCOMMON_MULTIPLE);
 
 			genScene.GetState(&meshState);
 		}
 
-		combinedState.AddStates(stateList, 4);
-		live->SendState(&combinedState);
+		GenState* stateList[] = {&instState, &modState, &modelState, &meshState};
+
+		combinedState.AddSubstates(stateList, 4);
+		live->SendState(combinedState);
 	}
 }
 
@@ -361,96 +322,54 @@ void SendLiveGenCollision() {
 	if (!live || !spyroCollision.IsValid())
 		return;
 
-	uint32* data = (uint32*) spyroCollision.triangles;
+	uint32* triangles = (uint32*) spyroCollision.triangles;
 	int numTriangles = spyroCollision.numTriangles;
 
-	// Setup data structs
-	GenState posState(GENID_COLLISIONDATAMOD, GENMESH_VERTS), indexState(GENID_COLLISIONDATAMOD, GENMESH_FACEVERTINDEX), 
-			 modelIdState(GENID_COLLISIONDATAMODEL, GENMODEL_MODIDS), instIdState(GENID_COLLISIONDATAINSTANCE, GENINST_MODELID), 
-			modTypeState(GENID_COLLISIONDATAMOD, GENMOD_TYPE);
-	GenElements* posData, *indexData, *colourData, * modelid, *instid, *modTypeData;
+	// Create the object models if they don't already exist
+	GenModel* model = (GenModel*) genScene.CreateOrGetObject(GENID_COLLISIONDATAMODEL, GENOBJ_MODEL);
+	GenMod* mod = (GenMod*) genScene.CreateOrGetObject(GENID_COLLISIONDATAMOD, GENOBJ_MOD);
+	GenInst* instance = (GenInst*) genScene.CreateOrGetObject(GENID_COLLISIONDATAINSTANCE, GENOBJ_INST);
 
-	posData = posState.Lock(GENTYPE_VEC3, numTriangles * 3);
-	indexData = indexState.Lock(GENTYPE_S32, numTriangles * 3);
-	modelid = modelIdState.Lock(GENTYPE_ID, 1);
-	instid = instIdState.Lock(GENTYPE_ID, 1);
-	modTypeData = modTypeState.Lock(GENTYPE_U16, 1);
-	
 	// Set IDs
-	instid->id[0] = GENID_COLLISIONDATAMODEL;
-	modelid->id[0] = GENID_COLLISIONDATAMOD;
-	modTypeData->u16[0] = MOD_EDITMESH;
-
-	// Set vert positions
-	// Get verts
-	GenVec3* verts = posData->vec3;
-	gens32* faceIndices = indexData->s32;
-	uint16* refs = spyroCollision.blocks;
-	int blckStart[100] = {0};//((collData->triangleData & 0x003FFFFF) - (collData->blocks & 0x003FFFFF)) / 2;
-	genu32 blckClrs[3] = {0xFF0000FF, 0xFF00FF00, 0xFFFF0000};
-	int blck = 0;
-
-	for (int i = 0; blck < 100; i++) {
-		if (refs[i] & 0x8000)
-			blckStart[blck++] = i;
-	}
-
-	for (int part = 0, e = 3*numTriangles; part < e; part += 3) {
-		int16 offX = data[part+0] & 0x3FFF, offY = data[part+1] & 0x3FFF, offZ = data[part+2] & 0x3FFF;
-		int16 p1X = offX, p2X = bitss(data[part+0], 14, 9) + offX, p3X = bitss(data[part+0], 23, 9) + offX;
-		int16 p1Y = offY, p2Y = bitss(data[part+1], 14, 9) + offY, p3Y = bitss(data[part+1], 23, 9) + offY;
-		int16 p1Z = offZ, p2Z = bitsu(data[part+2], 16, 8) + offZ, p3Z = bitsu(data[part+2], 24, 8) + offZ;
-
-		verts[part+0].x = (float) p1X * WORLDSCALE; verts[part+0].y = (float) p1Y * WORLDSCALE; verts[part+0].z = (float) p1Z * WORLDSCALE;
-		verts[part+1].x = (float) p2X * WORLDSCALE; verts[part+1].y = (float) p2Y * WORLDSCALE; verts[part+1].z = (float) p2Z * WORLDSCALE;
-		verts[part+2].x = (float) p3X * WORLDSCALE; verts[part+2].y = (float) p3Y * WORLDSCALE; verts[part+2].z = (float) p3Z * WORLDSCALE;
-
-		faceIndices[part] = part; faceIndices[part+1] = part + 1; faceIndices[part+2] = -(part + 2) - 1;
-
-		// get a colour intensity
-		/*genu32 colour = 0xFF000000;
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = blckStart[i]; j < blckStart[i+1]; j++)
-			{
-				if ((refs[j] & 0x7FFF) == part / 3)
-				{
-					colour += blckClrs[i%3];
-					colour |= 0xFF000000;
-				}
-			}
-		}
-		if (colour == 0xFF000000) colour = 0xFFFFFFFF;
-		colourData->u32[part] = colourData->u32[part+1] = colourData->u32[part+2] = colour;*/
-	}
+	mod->SetModType(MOD_EDITMESH);
+	instance->SetModel(model->GetId());
+	model->AddModifier(mod->GetId());
 	
-	// Unlock all data
-	posState.Unlock();
-	indexState.Unlock();
-	modelIdState.Unlock();
-	instIdState.Unlock();
-	modTypeState.Unlock();
+	// Convert Spyro collision model to Gen model
+	GenMesh* mesh = mod->GetMesh();
+	mesh->SetNum(GENMET_VERT, numTriangles * 3);
+	mesh->SetNum(GENMET_FACE, numTriangles);
 
-	// Send mesh data
-	GenState meshState(GENID_COLLISIONDATAMOD, GENMOD_MESHDATA);
+	GenMeshVert* verts = mesh->LockVerts();
+	GenMeshFace* faces = mesh->LockFaces();
 
-	meshState.AddState(&posState);
-	meshState.AddState(&indexState);
+	for (int part = 0, e = numTriangles * 3; part < e; part += 3) {
+		int16 offX = triangles[part+0] & 0x3FFF, offY = triangles[part+1] & 0x3FFF, offZ = triangles[part+2] & 0x3FFF;
+		int16 p1X = offX, p2X = bitss(triangles[part+0], 14, 9) + offX, p3X = bitss(triangles[part+0], 23, 9) + offX;
+		int16 p1Y = offY, p2Y = bitss(triangles[part+1], 14, 9) + offY, p3Y = bitss(triangles[part+1], 23, 9) + offY;
+		int16 p1Z = offZ, p2Z = bitsu(triangles[part+2], 16, 8) + offZ, p3Z = bitsu(triangles[part+2], 24, 8) + offZ;
 
-	live->SendState(&meshState);
+		verts[part+0].pos.x = (float) p1X * WORLDSCALE; verts[part+0].pos.y = (float) p1Y * WORLDSCALE; verts[part+0].pos.z = (float) p1Z * WORLDSCALE;
+		verts[part+1].pos.x = (float) p2X * WORLDSCALE; verts[part+1].pos.y = (float) p2Y * WORLDSCALE; verts[part+1].pos.z = (float) p2Z * WORLDSCALE;
+		verts[part+2].pos.x = (float) p3X * WORLDSCALE; verts[part+2].pos.y = (float) p3Y * WORLDSCALE; verts[part+2].pos.z = (float) p3Z * WORLDSCALE;
 
-	// Send ID data
-	live->SendState(&instIdState);
+		GenMeshFace* face = &faces[part / 3];
+		faces[part].numSides = 3;
+		faces[part].sides[0].vert = part;
+		faces[part].sides[1].vert = part + 1;
+		faces[part].sides[2].vert = -(part + 2) - 1;
+	}
 
-	live->SendState(&modelIdState);
-
-	// Send mod type
-	live->SendState(&modTypeState);
+	// Send all the objects over LiveGen
+	live->SendState(model->GetState(GENCOMMON_MULTIPLE).GetSubstate());
+	live->SendState(mod->GetState(GENCOMMON_MULTIPLE));
+	live->SendState(instance->GetState(GENCOMMON_MULTIPLE));
+	live->SendState(mesh->GetState(GENCOMMON_MULTIPLE));
 }
 
 int lastMobyX[1000], lastMobyY[1000], lastMobyZ[1000];
 
-void SendLiveGenMobys() {
+void SendLiveGenMobyInstances() {
 	if (!live)
 		return;
 
@@ -458,12 +377,12 @@ void SendLiveGenMobys() {
 
 	// TEST -- Send objects!
 	if (mobys && numMobys) {
-		GenElements* data = (GenElements*) rawDataHackyStacky;
+		GenElements& data = *((GenElements*)rawDataHackyStacky);
 
 		// Moby model
-		data->type = GENTYPE_U16;
-		data->numElements = 1;
-		data->u16[0] = MOD_BASESPHERE;
+		data.type = GENTYPE_U16;
+		data.numElements = 1;
+		data.u16[0] = MOD_BASESPHERE;
 		live->SendStateDirect(GENID_GENERICMOBYMOD, GENMOD_TYPE, data);
 
 		GenExElements ex(GENTYPE_PROP);
@@ -473,17 +392,17 @@ void SendLiveGenMobys() {
 		prop->value.numElements = 1;
 		prop->value.f32[0] = MOBYSPHERESIZE;
 
-		data->type = GENTYPE_RAW;
-		data->numElements = ex.GetRawSize();
-		memcpy(data->raw, ex.GetRaw(), ex.GetRawSize());
+		data.type = GENTYPE_RAW;
+		data.numElements = ex.GetRawSize();
+		memcpy(data.raw, ex.GetRaw(), ex.GetRawSize());
 		live->SendStateDirect(GENID_GENERICMOBYMOD, GENMOD_PROPS, data);
 
-		data->type = GENTYPE_ID;
-		data->numElements = 1;
-		data->id[0] = GENID_GENERICMOBYMOD;
+		data.type = GENTYPE_ID;
+		data.numElements = 1;
+		data.id[0] = GENID_GENERICMOBYMOD;
 		live->SendStateDirect(GENID_GENERICMOBYMODEL, GENMODEL_MODIDS, data);
 
-		for (int i = 0; (uintptr) &mobys[i] + sizeof (mobys[i]) < (uintptr) memory + 0x00200000; i++) {
+		for (int i = 0; (uintptr) &mobys[i + 1] < (uintptr) memory + 0x00200000; i++) {
 			if (mobys[i].state == -1)
 				break; // last moby
 			else if (mobys[i].state < 0)
@@ -492,35 +411,35 @@ void SendLiveGenMobys() {
 			//	continue; // moby hasn't changed
 
 			float zAdd = MOBYSPHERESIZE;
-			data->type = GENTYPE_ID;
-			data->numElements = 1;
-			data->id[0] = GENID_GENERICMOBYMODEL;
+			data.type = GENTYPE_ID;
+			data.numElements = 1;
+			data.id[0] = GENID_GENERICMOBYMODEL;
 			if (mobys[i].type < 768 && genScene.GetModelById(GENID_MOBYMODELS + mobys[i].type)) {
-				data->id[0] = GENID_MOBYMODELS + mobys[i].type;
+				data.id[0] = GENID_MOBYMODELS + mobys[i].type;
 				zAdd = 0.0f;
 			}
 			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_MODELID, data);
 
-			data->type = GENTYPE_TRANSFORM;
-			data->numElements = 1;
-			data->transform[0].Reset();
-			data->transform[0].localRotation.z = (float) mobys[i].angle.z / 255.0f * 6.28f;
-			data->transform[0].localTranslation.x = (float) mobys[i].x * MOBYPOSSCALE;
-			data->transform[0].localTranslation.y = (float) mobys[i].y * MOBYPOSSCALE;
-			data->transform[0].localTranslation.z = (float) mobys[i].z * MOBYPOSSCALE + zAdd;
+			data.type = GENTYPE_TRANSFORM;
+			data.numElements = 1;
+			data.transform[0].Reset();
+			data.transform[0].localRotation.z = (float) mobys[i].angle.z / 255.0f * 6.28f;
+			data.transform[0].localTranslation.x = (float) mobys[i].x * MOBYPOSITIONSCALE;
+			data.transform[0].localTranslation.y = (float) mobys[i].y * MOBYPOSITIONSCALE;
+			data.transform[0].localTranslation.z = (float) mobys[i].z * MOBYPOSITIONSCALE + zAdd;
 			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_TRANSFORM, data);
 
 			char name[250];
 
-			sprintf(name, "moby %i (%08X)", i, (uintptr) &mobys[i] - (uintptr) memory);
-			data->type = GENTYPE_CSTRING;
-			data->numElements = strlen(name) + 1;
-			strcpy(data->s8, name);
+			sprintf(name, "Moby %i (%08X)", i, (uintptr) &mobys[i] - (uintptr) memory);
+			data.type = GENTYPE_CSTRING;
+			data.numElements = strlen(name) + 1;
+			strcpy(data.s8, name);
 			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_NAME, data);
 
-			data->type = GENTYPE_ID;
-			data->numElements = 1;
-			data->id[0] = GENID_MOBYTEXTURES;
+			data.type = GENTYPE_ID;
+			data.numElements = 1;
+			data.id[0] = GENID_MOBYTEXTURES;
 			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_MATIDS, data);
 
 			lastMobyX[i] = mobys[i].x;
@@ -597,66 +516,59 @@ void SendLiveGenSpyro() {
 
 	GenState modMeshState(GENID_SPYROMODELMOD, GENMOD_MESHDATA);
 
-	modMeshState.AddState(&vertState);
-	modMeshState.AddState(&faceState);
+	modMeshState.AddSubstate(vertState);
+	modMeshState.AddSubstate(faceState);
 
 	// Send all states
-	live->SendState(&modState);
-	live->SendState(&modMeshState);
-	live->SendState(&modelState);
-	live->SendState(&instState);
+	live->SendState(modState);
+	live->SendState(modMeshState);
+	live->SendState(modelState);
+	live->SendState(instState);
 }
 
 void SendLiveGenMobyModel(int modelId, int mobyId = -1) {
 	if (!live || !mobyModels)
 		return;
 
-	if (mobyId > -1)
+	if (mobyId > -1) {
+		// Send a specific moby with specific animations
 		BuildGenMobyModel(modelId, mobys[mobyId].anim.nextAnim, mobys[mobyId].anim.nextFrame);
-	else
+	} else {
+		// Send a model with animation 0 and frame 0
 		BuildGenMobyModel(modelId, 0, 0);
+	}
 
-	if (genMobys[modelId]) {
-		// Create dummy instance of model
-		if (!genScene.GetInstById(GENID_MOBYPREVIEWINSTANCES + modelId)) {
-			GenInst* inst = (GenInst*) genScene.CreateObject(GENID_MOBYPREVIEWINSTANCES + modelId, GENOBJ_INST);
+	// Create dummy instance of model
+	GenInst* inst = (GenInst*) genScene.CreateOrGetObject(GENID_MOBYPREVIEWINSTANCES + modelId, GENOBJ_INST);
+	genwchar instName[256];
 
-			inst->SetModel(GENID_MOBYMODELS + modelId);
-
-			genwchar str[256];
-
-			swprintf(str, L"Moby %i/%04X %08X", modelId, modelId, mobyModels[modelId].address & 0x003FFFFF);
-			inst->SetName(str);
-		}
+	swprintf(instName, L"MobyType %i/%04X; addr %08X", modelId, modelId, mobyModels[modelId].address & 0x003FFFFF);
+	inst->SetModel(GENID_MOBYMODELS + modelId);
+	inst->SetName(instName);
 		
-		// Send texture
-		char filename[MAX_PATH];
+	// Send texture
+	char filename[MAX_PATH];
 
-		GetLevelFilename(filename, SEF_OBJTEXTURES);
+	GetLevelFilename(filename, SEF_OBJTEXTURES);
 
-		GenState texState(GENID_MOBYTEXTURES, GENMAT_SOURCEFILE); // todo genSceneify
-		GenElements* elems = texState.Lock(GENTYPE_CSTRING, strlen(filename) + 1);
+	GenState texState(GENID_MOBYTEXTURES, GENMAT_SOURCEFILE); // todo genSceneify
+	GenElements* elems = texState.Lock(GENTYPE_CSTRING, strlen(filename) + 1);
 		
-		strcpy(elems->s8, filename);
-		texState.Unlock();
+	strcpy(elems->s8, filename);
+	texState.Unlock();
 
-		live->SendState(texState.GetStateData());
+	live->SendState(texState.GetSubstate());
 
-		// Send model states
-		GenState state;
-		GenObject* objList[] = {genMobyModels[modelId], genMobyMods[modelId], genScene.GetInstById(GENID_MOBYPREVIEWINSTANCES + modelId)};
-		
-		for (int i = 0; i < sizeof (objList) / sizeof (objList[0]); i++) {
-			if (!objList[i])
-				continue;
+	// Send model states
+	GenMod* mod = genScene.GetModById(GENID_MOBYMODS + modelId);
+	GenObject* objList[] = {genScene.GetModelById(GENID_MOBYMODELS + modelId), mod, mod ? mod->GetMesh() : nullptr, inst};
+	
+	for (int i = 0; i < sizeof (objList) / sizeof (objList[0]); i++) {
+		if (!objList[i])
+			continue;
 
-			state.SetInfo(objList[i]->GetId(), GENCOMMON_MULTIPLE);
-
-			objList[i]->GetState(&state);
-
-			live->SendState(state.GetStateData());
-			objList[i]->ValidateAll();
-		}
+		live->SendState(objList[i]->GetState(GENCOMMON_MULTIPLE));
+		objList[i]->ValidateAll();
 	}
 }
 
@@ -679,7 +591,7 @@ void SendLiveGenAllMobys() {
 		}
 	}
 
-	SendLiveGenMobys();
+	SendLiveGenMobyInstances();
 }
 
 uint32 FindFreeMemory(int sectorSize) {
@@ -1210,29 +1122,28 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 	UpdateObjTexMap();
 
 	// Create the container model and mod
-	if (!genMobyModels[mobyModelId]) {
-		genMobyModels[mobyModelId] = (GenModel*)genScene.CreateObject(GENID_MOBYMODELS + mobyModelId, GENOBJ_MODEL);
-		if (!genMobyMods[mobyModelId]) {
-			genMobyMods[mobyModelId] = (GenMod*) genScene.CreateObject(GENID_MOBYMODS + mobyModelId, GENOBJ_MOD);
-			genMobyMods[mobyModelId]->SetModType(MOD_EDITMESH);
+	GenModel* model = (GenModel*)genScene.CreateOrGetObject(GENID_MOBYMODELS + mobyModelId, GENOBJ_MODEL);
+	GenMod* mod = (GenMod*)genScene.CreateOrGetObject(GENID_MOBYMODS + mobyModelId, GENOBJ_MOD);
+	GenMesh* mesh = (GenMesh*)mod->GetMesh();
 
-			genMobys[mobyModelId] = genMobyMods[mobyModelId]->GetMesh();
-		}
-
-		genMobyModels[mobyModelId]->AddModifier(GENID_MOBYMODS + mobyModelId);
+	if (!mesh || !mod || !model) {
+		// Error?
+		return;
 	}
 
-	if (!genMobys[mobyModelId])
-		return; // failed to create moby model
+	mod->SetModType(MOD_EDITMESH);
 
-	GenMesh* genMoby = genMobys[mobyModelId];
+	if (model->GetNumModifiers() == 0) {
+		model->AddModifier(mod->GetId());
+	}
+
 	uint32* verts = NULL, *faces = NULL, *colours = NULL;
 	uint16* blocks = NULL;
 	uint8* adjusts = NULL;
 	int numVerts = 0, numColours = 0;
 	int maxNumFaces = 0;
 	uint32 frameStartFlags = 0;
-	float scale = MOBYPOSSCALE;
+	float scale = MOBYPOSITIONSCALE;
 	bool animated = (mobyModels[mobyModelId].address & 0x80000000);
 
 	if (animated) {
@@ -1254,7 +1165,7 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 
 		blocks = &anim->data[frame->blockOffset];
 		adjusts = (uint8*)&blocks[frame->numBlocks];
-		scale = (float) (MOBYPOSSCALE) * ((float) (anim->vertScale + 1));
+		scale = (float) (MOBYPOSITIONSCALE) * ((float) (anim->vertScale + 1));
 		frameStartFlags = frame->startFlags;
 	} else {
 		SimpleModelHeader* model = (SimpleModelHeader*) (mobyModels[mobyModelId]); // make sure the conversion works
@@ -1266,15 +1177,15 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 		verts = state->data32; faces = &state->data32[(state->hpFaceOff - 16) / 4]; colours = &state->data32[(state->hpColourOff - 16) / 4];
 		numVerts = state->numHpVerts; numColours = state->numHpColours;
 		maxNumFaces = faces[0] / 8;
-		scale = MOBYPOSSCALE * 4.0f;
+		scale = MOBYPOSITIONSCALE * 4.0f;
 	}
 
 	if (numVerts >= 300 || numColours >= 300 || maxNumFaces >= 600)
 		return;
 
 	// Send frame vertices
-	genMoby->SetNum(GENMET_VERT, numVerts);
-	GenMeshVert* genVerts = genMoby->LockVerts();
+	mesh->SetNum(GENMET_VERT, numVerts);
+	GenMeshVert* genVerts = mesh->LockVerts();
 
 	if (animated) {
 		int curX = 0, curY = 0, curZ = 0;
@@ -1344,12 +1255,12 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 			genVerts[i].pos.Set((float) bitss(verts[i], 22, 10) * scale, (float) bitss(verts[i], 12, 10) * scale, (float) -bitss(verts[i], 0, 12) * scale / 2.0f);
 	}
 
-	genMoby->UnlockVerts(genVerts);
+	mesh->UnlockVerts(genVerts);
 
 	// Set model faces
-	genMoby->SetNum(GENMET_FACE, maxNumFaces);
+	mesh->SetNum(GENMET_FACE, maxNumFaces);
 
-	GenMeshFace* genFaces = genMoby->LockFaces();
+	GenMeshFace* genFaces = mesh->LockFaces();
 	int32 tempU[512], tempV[512];
 
 	int numSides = 0, numUvs = 0, numUvIndices = 0, index = 1, maxIndex = faces[0] / 4 + 1;
@@ -1449,31 +1360,34 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 		}
 	}
 
-	genMoby->UnlockFaces(genFaces);
+	mesh->UnlockFaces(genFaces);
 
 	// Set UVs according to the temporary UVs
-	genMoby->SetNum(GENMET_UV, numUvs);
-	GenVec2* genUvs = genMoby->LockUvs();
+	mesh->SetNum(GENMET_UV, numUvs);
+	GenVec2* genUvs = mesh->LockUvs();
 
 	for (int i = 0; i < numUvs; i++)
 		genUvs[i].Set((float) tempU[i] / 65535, (float) tempV[i] / 65535);
 
-	genMoby->UnlockUvs(genUvs);
+	mesh->UnlockUvs(genUvs);
 
 	// Set colours
-	genMoby->SetNum(GENMET_COLOUR, numColours);
-	genu32* genColours = genMoby->LockColours();
+	mesh->SetNum(GENMET_COLOUR, numColours);
+	genu32* genColours = mesh->LockColours();
 
 	for (int i = 0; i < numColours; i++)
 		genColours[i] = colours[i] | 0xFF000000;
 
-	genMoby->UnlockColours(genColours);
+	mesh->UnlockColours(genColours);
 }
 
 void BuildSpyroMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex) {
-	GenMesh* genMoby = genMobys[mobyModelId];
+	GenMesh* genMoby = nullptr;
+	if (GenModel* genMobyModel = genScene.GetModelById(GENID_MOBYMODELS + mobyModelId)) {
+		genMoby = genMobyModel->GetMesh();
+	}
 
-	if (!(mobyModels[mobyModelId].address & 0x80000000))
+	if (!genMoby || !(mobyModels[mobyModelId].address & 0x80000000))
 		return;
 
 	ModelHeader* model = mobyModels[mobyModelId];
@@ -1489,7 +1403,7 @@ void BuildSpyroMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameInde
 	uint8* adjusts = (uint8*) &blocks[frame->numBlocks];
 	int numVerts = anim->numVerts, numColours = anim->numColours;
 	int maxNumFaces = faces[0] / 8;
-	const float scale = (float) (MOBYPOSSCALE) * ((float) (anim->vertScale + 1));
+	const float scale = (float) (MOBYPOSITIONSCALE) * ((float) (anim->vertScale + 1));
 
 	// Set colours
 	genu32* genColours = genMoby->LockColours();

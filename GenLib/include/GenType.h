@@ -246,8 +246,8 @@ struct GenElements {
 	GENINLINE bool Get(genu32 index, GenValue* value) const;
 	GENINLINE void Insert(genu32 index, const GenValue& value);
 	GENINLINE void Remove(genu32 index);
-	GENINLINE bool Copy(const GenElements* other);
-	GENINLINE bool Compare(const GenElements* other) const;
+	GENINLINE bool Copy(const GenElements& other);
+	GENINLINE bool Compare(const GenElements& other) const;
 
 	// GetString: Returns string of specified ID
 	GENINLINE char* GetString(int id);
@@ -305,8 +305,8 @@ struct GenProp {
 	char name[GENPROPNAMELENGTH]; // name of the property; equivalent to the control's tag
 	GenElements value; // value of the property
 	
-	GENINLINE void Copy(const GenProp* other);
-	GENINLINE bool Compare(const GenProp* other);
+	GENINLINE void Copy(const GenProp& other);
+	GENINLINE bool Compare(const GenProp& other);
 
 	// GetSize: Returns total (required) size of this struct + its element data
 	GENINLINE int GetSize() const;
@@ -437,20 +437,20 @@ GENINLINE genu32 GenElements::GetSize(genu32 dataType, genu32 numElements) {
 	return GetBaseSize() + numElements * genTypeDefs[dataType].size;
 }
 
-GENINLINE bool GenElements::Compare(const GenElements* other) const {
-	if (numElements != other->numElements || type != other->type)
+GENINLINE bool GenElements::Compare(const GenElements& other) const {
+	if (numElements != other.numElements || type != other.type)
 		return false;
 
 	if (type >= GENTYPE_NUMTYPES)
 		return false;
 
 	for (int i = 0, e = (numElements * genTypeDefs[type].size) / 4; i < e; i++) {
-		if (u32[i] != other->u32[i])
+		if (u32[i] != other.u32[i])
 			return false;
 	}
 
 	for (int i = (numElements * genTypeDefs[type].size) / 4 * 4, e = (numElements * genTypeDefs[type].size); i < e; i++) {
-		if (u8[i] != other->u8[i])
+		if (u8[i] != other.u8[i])
 			return false;
 	}
 
@@ -555,35 +555,35 @@ GENINLINE void GenElements::Remove(genu32 index) {
 		u8[i] = u8[i + genTypeDefs[type].size];
 }
 
-GENINLINE bool GenElements::Copy(const GenElements* other) {
-	if (other->type >= GENTYPE_NUMTYPES)
+GENINLINE bool GenElements::Copy(const GenElements& other) {
+	if (other.type >= GENTYPE_NUMTYPES)
 		return false;
 
-	type = other->type;
-	numElements = other->numElements;
+	type = other.type;
+	numElements = other.numElements;
 	
 	for (genu32 i = 0, e = (numElements * genTypeDefs[type].size) / 4; i < e; i++)
-		u32[i] = other->u32[i];
+		u32[i] = other.u32[i];
 	for (genu32 i = (numElements * genTypeDefs[type].size) / 4 * 4; i < numElements * genTypeDefs[type].size; i++)
-		u8[i] = other->u8[i];
+		u8[i] = other.u8[i];
 	return true;
 }
 
-GENINLINE bool GenProp::Compare(const GenProp* other) {
+GENINLINE bool GenProp::Compare(const GenProp& other) {
 	for (int i = 0; i < GENPROPNAMELENGTH; i++) {
-		if (name[i] != other->name[i])
+		if (name[i] != other.name[i])
 			return false;
 		if (!name[i])
 			break;
 	}
 
-	return value.Compare(&other->value);
+	return value.Compare(other.value);
 }
 
-GENINLINE void GenProp::Copy(const GenProp* other) {
+GENINLINE void GenProp::Copy(const GenProp& other) {
 	for (int i = 0; i < GENPROPNAMELENGTH; i++)
-		name[i] = other->name[i];
-	value.Copy(&other->value);
+		name[i] = other.name[i];
+	value.Copy(other.value);
 }
 
 GENINLINE int GenProp::GetSize() const {

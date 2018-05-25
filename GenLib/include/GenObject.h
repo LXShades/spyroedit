@@ -27,7 +27,7 @@ struct GenObjTypeDef {
 	template <class T>
 	GenObjTypeDef(T, const char* namie, GenStateType sStart, GenStateType sEnd) : name(namie), classSize(sizeof (T)), stateStart(sStart), stateEnd(sEnd), 
 		createFunc((void(GenObject::*)())&T::Create), destroyFunc((void(GenObject::*)())&T::Destroy), 
-		setStateFunc((int(GenObject::*)(const GenStateData*))&T::SetState), getStateFunc((int(GenObject::*)(GenState*) const)&T::GetState) {};
+		setStateFunc((int(GenObject::*)(const GenSubstate*))&T::SetState), getStateFunc((int(GenObject::*)(GenState*) const)&T::GetState) {};
 
 	const char* const name; // obj type name
 	genu32 classSize;
@@ -38,29 +38,32 @@ struct GenObjTypeDef {
 	void (GenObject::*createFunc)();
 	void (GenObject::*destroyFunc)();
 
-	int (GenObject::*setStateFunc)(const GenStateData* stateDataIn);
+	int (GenObject::*setStateFunc)(const GenSubstate* stateDataIn);
 	int (GenObject::*getStateFunc)(GenState* stateInOut) const;
 };
 
 class GenObject {
 	public:
-		// creation/destruction
+		// Creation/destruction
 		void Create(); // dummy create: does nothing--please don't call. yeah it's dumb
 		void Create(genid id, GenObjType type, GenScene* parentScene);
 		void Destroy();
 
-		// base getters
+		// Getters
 		inline genid GetId() const;
 		inline GenObjType GetObjType() const;
 		
-		// state stuff
-		int SetState(const GenStateData* state); // returns number of states successfully applied
-		int GetState(GenState* state) const; // returns number of states successfully retrieved
+		// States
+		int SetState(const GenSubstate* state); // returns number of states successfully applied
+		int GetState(GenState* state) const;
+		
+		GenState GetState(GenStateType stateType) const; // Gets a state from self
+		GenState GetState(genid objectId, GenStateType stateType) const; // Gets a state from an embedded target object (recursively checked). Only Scenes contain these
 
-		int DefSetState(const GenStateData* state); // used in SetState functions to handle stuff like GENCOMMON_MULTIPLE
+		int DefSetState(const GenSubstate* state); // used in SetState functions to handle stuff like GENCOMMON_MULTIPLE
 		int DefGetState(GenState* state) const; // GetState equivalent ^
 
-		// validation stuff
+		// Validation stuff
 		inline bool IsValid() const; // returns whether all states are valid
 		inline bool IsStateValid(GenStateType stateType) const; // returns whether the given state is valid
 
@@ -101,12 +104,16 @@ class GenScene : public GenObject {
 
 		void SetId(genid id);
 
-		int SetState(const GenStateData* state);
+	public:
+		using GenObject::GetState;
+		int SetState(const GenSubstate* state);
 		int GetState(GenState* state) const;
 
-		// CreateObject: Creates an object of the specified type. Use an ID of 0 to generate a random ID.
-		// Returns the created object. Fails if an object with the ID already exists, regardless of its type.
+		// Creates an object of the specified type and returns a pointer. Use an ID of 0 to generate a random ID. Fails on an ID conflict
 		GenObject* CreateObject(genid id, GenObjType type);
+
+		// Creates an object, or if it already exists, retrieves the existing one. Creates a new object if ID is 0. Fails if a conflicting object with a different type is found
+		GenObject* CreateOrGetObject(genid id, GenObjType type);
 		bool DestroyObject(genid id);
 
 		// GetObject: various functions for obtaining objects by ID or index. Indexed objects are valid between 0-GetNumObjects().
@@ -143,8 +150,9 @@ class GenModel : public GenObject {
 
 		inline genid GetModifier(int index) const;
 		inline int GetNumModifiers() const;
-
-		int SetState(const GenStateData* state);
+		
+		using GenObject::GetState;
+		int SetState(const GenSubstate* state);
 		int GetState(GenState* state) const;
 	private:
 		genid modifiers[MAXNUMMODELMODS];
@@ -170,8 +178,9 @@ class GenInst : public GenObject {
 		
 		inline void SetMesh(genid meshId);
 		inline genid GetMesh() const;
-
-		int SetState(const GenStateData* state);
+		
+		using GenObject::GetState;
+		int SetState(const GenSubstate* state);
 		int GetState(GenState* state) const;
 
 	private:
@@ -204,6 +213,7 @@ enum GenModifierType : genu16 {
 	// UNORDERED MODS // TODO add compatibility so we can reorder
 	MOD_BASEBONE,
 	MOD_SKIN,
+	MOD_SPYROEDIT,
 
 	NUMMODTYPES,
 	MOD_INVALID = 0xFFFF // This monster exists due to the magic of errors and error return values
@@ -213,8 +223,9 @@ class GenMod : public GenObject {
 	public:
 		void Create();
 		void Destroy();
-
-		int SetState(const GenStateData* state);
+		
+		using GenObject::GetState;
+		int SetState(const GenSubstate* state);
 		int GetState(GenState* state) const;
 
 		inline void SetModType(GenModifierType type);
@@ -284,8 +295,9 @@ class GenMesh : public GenObject {
 
 		bool SetNum(GenMeshElementType type, genu32 num);
 		inline genu32 GetNum(GenMeshElementType type) const;
-
-		int SetState(const GenStateData* state);
+		
+		using GenObject::GetState;
+		int SetState(const GenSubstate* state);
 		int GetState(GenState* state) const;
 
 		// CopyElements: Copies all elements from another mesh to this one. Returns true only if all elements can be copied. Fails if any elements are locked.

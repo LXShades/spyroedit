@@ -56,23 +56,39 @@ struct GenStateInfo {
 	genu32 dataSize;
 };
 
-class GenStateData {
+// POD state data for Genesis states. Use GenState to manage states dynamically.
+class GenSubstate {
 	public:
 		GenStateInfo info;
 		GenElements data;
 	
-		bool GetState(GenState* stateOut, int stateIndex) const; // Retrives an embedded state as a copy. stateOut must be initialised. Fails if no state is available
-		const GenStateData* GetStateData(int stateIndex) const;
-		GenStateData* GetStateData(int stateIndex);
-		int GetNumStates() const; // Returns total number of embedded states, or 0 if this is not a valid embedded state type.
+	public:
+		// State retrieval functions
+		// Retrieves an embedded state as a copy. Fails if no state is available at the index
+		bool GetState(GenState* stateOut, int stateIndex) const;
 
-		inline GenType GetElementType() const {return (GenType) data.type;}
-		GenObjType GetObjType() const;
+		// Returns a direct pointer to a substate
+		const GenSubstate* GetSubstate(int stateIndex) const;
+		GenSubstate* GetSubstate(int stateIndex);
 
+		// Returns the number of embedded substates
+		int GetNumSubstates() const; // Returns total number of embedded states, or 0 if this is not a valid embedded state type.
+
+	public:
+		// Data translation
+		// Converts GenStateTypes and/or GenTypes to the specification provided by GenStateTypeTranslator. Used for backwards and forwards-compatibility.
 		bool TranslateTypes(const GenStateTypeTranslator* translator);
 
-		int CountFilteredStates(const GenStateFilter* filter) const; // Counts the number of states that would be filtered, returning the number
-		int RemoveFilteredStates(const GenStateFilter* filter); // Removes filtered states and returns the state's total size difference
+		// Counts the number of states that would be filtered from this substate, returning the number
+		int CountFilteredStates(const GenStateFilter* filter) const;
+
+		// Removes filtered states and returns the state's total size difference
+		int RemoveFilteredStates(const GenStateFilter* filter);
+		
+	public:
+		// Miscellaneous
+		// Estimates the GenObjType based on the types of substate or substates contained
+		GenObjType GetObjType() const;
 
 		static inline int GetSize(GenType elementType, genu32 numElements);
 };
@@ -88,37 +104,44 @@ class GenStateData {
 //   that the type and number fields of the GenElements struct will be available
 class GenState {
 	public:
-		// Auto creation/destruction
-		GenState(); // init empty
-		GenState(const GenState* srcCopy); // copy constructor
-		GenState(const GenState& srcCopy); // reference-based copy constructor to avoid the dumb default C++ copy constructor
+		// Creation/destruction
+		GenState();
+		GenState(const GenState& srcCopy);
+		
+		// Construct with preset target
 		GenState(genid id, GenStateType type);
-		GenState(genid id, GenStateType type, const GenElements* initElementData); // init with a copy of elements
+
+		// Construct with elements
+		GenState(genid id, GenStateType type, const GenElements& initElements); // init with a copy of elements
 		~GenState();
 
+	public:
 		// Manual creation/destruction
 		void Create(genid id, GenStateType type);
-		void Create(genid id, GenStateType type, const GenElements* initElements);
-		void Create(const GenState* srcCopy);
+		void Create(genid id, GenStateType type, const GenElements& initElements);
+		void Create(const GenState& srcCopy);
 		void Create();
 		void Destroy();
 
 		// Element functions
-		GenElements* Lock(); // Locks and returns (if available) element data without reallocating anything
+		GenElements* Lock(); // Locks and returns element data without reallocating anything
 		GenElements* Lock(GenType dataType, genu32 numElements); // Locks data with a size to contain elements of type and num.
-		void Unlock(); // My OCD tells me this function needs a comment, my brain tells me it doesn't
+		void Unlock();
 
-		const GenElements* GetConst() const; // Returns a const pointer to elements without locking. For ease of use. Ensure the class isn't locked during this time.
+		const GenElements& GetElements() const; // Returns a const pointer to elements without locking. For ease of use. Ensure the class isn't locked during this time.
 
-		bool ClearData(); // Clears state elements (not state info). Must be unlocked.
+		bool ClearElements(); // Clears state elements (not state info). Must be unlocked.
 
-		// Embedded-state functions. (Data must be UNLOCKED to use these)
-		// Embedded States only work if this state is a) empty or b) contains only state elements
-		bool AddState(const GenState* stateIn); // Copies and embeds 'stateIn' to this state
-		int  AddStates(const GenState*const* sourceStates, int numStates); // Embeds states via a list of GenState pointers
-		bool GetState(GenState* stateOut, int stateIndex) const; // Retrives an embedded state as a copy. stateOut must be initialised. Fails if no state is available
-		const GenStateData* GetStateData(int embeddedStateIndex) const; // Retrieves an embedded state directly as a pointer. Returns nullptr if unavailable
-		int GetNumStates() const; // Returns total number of embedded states, or 0 if this is not a valid embedded state type
+	public:
+		// Substate functions. To add substates, the GenState must unlocked and be of the type 'GENTYPE_GENSTATE'.
+		bool AddSubstate(const GenState& stateIn); // Copies and embeds 'stateIn' to this state
+		int  AddSubstates(const GenState*const* sourceStates, int numStates); // Embeds states via a list of GenState pointers. Faster than adding states separately.
+		
+		const GenSubstate& GetSubstate() const {return *substate;} // Retrieves the root substate
+		bool GetSubstate(GenState* stateOut, int stateIndex) const; // Retrives an embedded state as a copy. stateOut must be initialised. Fails if no state is available
+		const GenSubstate* GetSubstate(int embeddedStateIndex) const; // Retrieves an embedded state directly as a pointer. Returns nullptr if unavailable
+		
+		int GetNumSubstates() const; // Returns total number of embedded states, or 0 if this is not a valid embedded state type
 
 		// State transferral
 		// MoveFrom: Moves state data and info from another state object. The source state is zeroed out after this as two states cannot share the same data!
@@ -129,21 +152,23 @@ class GenState {
 
 		int FilterStates(const GenStateFilter* filter); // Removes states flagged false in the GenStateFilter, returning the number of states removed. 0 means no change
 
+	public:
 		// Getters/setters
-		inline genid GetId() const {return state->info.id;}
-		inline genu32 GetSize() const {return state->info.dataSize;} // returns total size of embedded GenElements OR embedded states
-		inline GenStateType GetType() const {return (GenStateType) state->info.type;}
-		inline GenType GetElementType() const {return (GenType) state->data.type;}
-		inline genu32 GetNumElements() const {return state->data.numElements;}
+		inline genid GetId() const {return substate->info.id;}
+		inline void SetId(genid id) {substate->info.id = id;}
+
+		inline GenStateType GetType() const {return (GenStateType) substate->info.type;}
+		inline void SetType(GenStateType type) {substate->info.type = type;}
+		
+		inline const GenStateInfo& GetInfo() const {return substate->info;}
+		inline void SetInfo(const GenStateInfo& infoIn) {substate->info.id = infoIn.id; substate->info.type = infoIn.type;} // Warning: ignores dataSize. Use Lock to change that.
+		inline void SetInfo(genid id, GenStateType type) {substate->info.id = id; substate->info.type = type;}
+
+		inline genu32 GetSize() const {return substate->info.dataSize;} // returns total size of embedded GenElements OR embedded states
+		inline GenType GetElementType() const {return (GenType) substate->data.type;}
+		inline genu32 GetNumElements() const {return substate->data.numElements;}
 
 		GenObjType GetObjType() const; // Discovers this state's object type based on its state type. If GENCOMMON_MULTIPLE, this also searches embedded states
-		inline void GetAllInfo(GenStateInfo* infoOut) const {*infoOut = state->info;}
-		inline const GenStateData* GetStateData() const {return state;}
-
-		inline void SetId(genid id) {state->info.id = id;}
-		inline void SetType(GenStateType type) {state->info.type = type;}
-		inline void SetInfo(const GenStateInfo* infoIn) {state->info.id = infoIn->id; state->info.type = infoIn->type;} // Warning: dataSize is ignored. Use Lock.
-		inline void SetInfo(genid id, GenStateType type) {state->info.id = id; state->info.type = type;}
 		
 		// PrintInfo: detailed information about the state for debugging
 		void PrintInfo(bool printChildren = true, int indentNum = 0, genstateidnamefunc idNameFunc = 0, bool firstPrint = true) const;
@@ -153,8 +178,8 @@ class GenState {
 		static inline const char* GetTypeName(GenStateType type);
 
 	private:
-		GenStateData* state;
-		GenStateData emptyState; // why yes, this is dumb, currently a hack to avoid having leftover global data before the program quits
+		GenSubstate* substate;
+		GenSubstate emptySubstate; // Hack to avoid having leftover global data before the program quits (Yeah it's annoying!)
 
 		genbool8 locked;
 
@@ -249,6 +274,7 @@ struct GenStateFilter {
 static const char* genStateTypeNames[] = {
 #include "GenStateTypes.h"
 };
+static const int genStateMaxTypeNameLength = 32;
 
 inline const char* GenState::GetTypeName(GenStateType type) {
 	if ((genu32) type < sizeof (genStateTypeNames) / sizeof (genStateTypeNames[0]))
@@ -257,6 +283,6 @@ inline const char* GenState::GetTypeName(GenStateType type) {
 		return "<genstate_unknown>";
 }
 
-inline int GenStateData::GetSize(GenType type, genu32 numElements) {
+inline int GenSubstate::GetSize(GenType type, genu32 numElements) {
 	return sizeof (GenStateInfo) + GenElements::GetSize(type, numElements);
 }
