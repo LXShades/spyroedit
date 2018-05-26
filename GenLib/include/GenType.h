@@ -1,6 +1,7 @@
 #pragma once
 // GEN: Unified data format used by Genesis states, files, and LiveGenesis.
 // This can be used by a non-SD application as a library for LiveGenesis and also for loading and saving GEN files
+#include <cstring> // temp?
 
 #define GENINLINE inline
 
@@ -132,6 +133,7 @@ struct GenVec3 {
 	genf32 x, y, z;
 
 	GENINLINE GenVec3() = default;
+	GENINLINE GenVec3(float magnitude) : x(magnitude), y(magnitude), z(magnitude) {};
 	GENINLINE GenVec3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {};
 
 	GENINLINE void Set(float x, float y, float z) {
@@ -170,6 +172,12 @@ struct GenTransform {
 	GenVec3 localTranslation;
 	GenVec3 localRotation;
 	GenVec3 localScale;
+
+	GenTransform() = default;
+	GenTransform(GenVec3 localTranslation_, GenVec3 localRotation_ = GenVec3(0.0f), GenVec3 localScale_ = GenVec3(1.0f), 
+				 GenVec3 pivotTranslation_ = GenVec3(0.0f), GenVec3 pivotRotation_ = GenVec3(0.0f), GenVec3 pivotScale_ = GenVec3(1.0f)) : 
+		localTranslation(localTranslation_), localRotation(localRotation_), localScale(localScale_), pivotTranslation(pivotTranslation_), pivotRotation(pivotRotation_),
+		pivotScale(pivotScale_) {}
 
 	inline void Reset() {
 		pivotTranslation.Zero();
@@ -232,8 +240,8 @@ struct GenElements {
 	
 	// Initialisers
 	GenElements() {};
-	GenElements(gens32 _iValue) : s32{_iValue} {};
-	GenElements(genf32 _fValue) : f32{_fValue} {};
+	GenElements(gens32 _iValue) : type(GENTYPE_S32), s32{_iValue}, numElements(1) {};
+	GenElements(genf32 _fValue) : type(GENTYPE_F32), f32{_fValue}, numElements(1) {};
 
 	// GetSize: Returns total (required) size of this struct + its element data
 	GENINLINE genu32 GetSize() const;
@@ -270,15 +278,15 @@ class GenExElements {
 		
 		void Clear();
 
-		GENINLINE GenType GetType() const {return (GenType) type;};
-		GENINLINE void SetType(GenType type) {this->type = type;};
+		GENINLINE GenType GetType() const {return (GenType) type;}
+		GENINLINE void SetType(GenType type) {this->type = type;}
 
 		// ReadRawDirect: Read directly from supplied raw GenExElements data. The pointer must be valid during use of this struct.
 		bool ReadRawDirect(const void* raw, genu32 rawSize);
 		// ReadRawLoad: Initialises data based on raw data. This differs from ReadRawDirect as this produces a sustained copy of the data and is generally slower.
 
 		GENINLINE const void* GetRaw() const {UpdateRaw(); return rawData;}
-		GENINLINE genu32 GetRawSize() const {UpdateRaw(); return rawSize;};
+		GENINLINE genu32 GetRawSize() const {UpdateRaw(); return rawSize;}
 
 		void* AddElement(genu32 size);
 		void* AddElementDirect(GenExElement* data);
@@ -305,6 +313,11 @@ struct GenProp {
 	char name[GENPROPNAMELENGTH]; // name of the property; equivalent to the control's tag
 	GenElements value; // value of the property
 	
+	// Constructors
+	GENINLINE GenProp() = default;
+	GENINLINE GenProp(const char* name, const GenElements& value);
+
+	// Copy and comparison
 	GENINLINE void Copy(const GenProp& other);
 	GENINLINE bool Compare(const GenProp& other);
 
@@ -578,6 +591,11 @@ GENINLINE bool GenProp::Compare(const GenProp& other) {
 	}
 
 	return value.Compare(other.value);
+}
+
+GENINLINE GenProp::GenProp(const char* name, const GenElements& value) {
+	strcpy(this->name, name);
+	this->value.Copy(value);
 }
 
 GENINLINE void GenProp::Copy(const GenProp& other) {

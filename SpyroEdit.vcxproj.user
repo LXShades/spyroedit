@@ -7,9 +7,8 @@
     <LocalDebuggerWorkingDirectory>C:\Users\User\Desktop\Emulation\ePSXe</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LocalDebuggerCommand>rundebug.bat</LocalDebuggerCommand>
+    <LocalDebuggerCommand>C:\Users\User\Desktop\Emulation\ePSXe\ePSXe.exe</LocalDebuggerCommand>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>
-    </LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>C:\Users\User\Desktop\Emulation\ePSXe</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

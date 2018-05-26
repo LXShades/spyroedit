@@ -1,7 +1,9 @@
 #pragma once
 #include "GenType.h"
+#include "GenContainer.h"
 #include "GenState.h"
 #include "GenError.h"
+#include <cstring> // temp?
 
 #define MAXNUMMODELMODS 10
 
@@ -172,6 +174,7 @@ class GenInst : public GenObject {
 		inline const genwchar* GetName() const;
 
 		inline const GenTransform* GetTransform() const;
+		inline void SetTransform(const GenTransform& transform);
 
 		inline void SetMaterial(genid materialId);
 		inline genid GetMaterial() const;
@@ -231,12 +234,17 @@ class GenMod : public GenObject {
 		inline void SetModType(GenModifierType type);
 		inline GenModifierType GetModType() const;
 
+		inline const GenProp* GetProperty(const char* propTag);
+		inline void SetProperty(const char* propTag, const GenElements& value);
+
 		GenMesh* GetMesh();
 		genid GetMeshId() const;
 
 	private:
 		genid mesh;
 		GenModifierType modType;
+
+		GenArray<GenProp*> props;
 };
 
 class GenMaterial : public GenObject {
@@ -523,6 +531,45 @@ inline GenModifierType GenMod::GetModType() const {
 	return (GenModifierType) modType;
 }
 
+inline const GenProp* GenMod::GetProperty(const char* propTag) {
+	// Try to find and return the property
+	for (GenProp* prop : props) {
+		if (!strcmp(prop->name, propTag)) {
+			return prop;
+		}
+	}
+
+	// If it doesn't exist, return nullptr
+	return nullptr;
+}
+
+inline void GenMod::SetProperty(const char* propTag, const GenElements& value) {
+	// Try to find the property if it exists
+	GenProp* existingProp = nullptr;
+
+	for (GenProp* prop : props) {
+		if (!strcmp(prop->name, propTag)) {
+			existingProp = prop;
+			break;
+		}
+	}
+
+	if (existingProp) {
+		if (existingProp->value.GetSize() < value.GetSize()) {
+			// Delete the old prop and make a new one
+			delete existingProp;
+
+			existingProp = new GenProp(propTag, value);
+		} else {
+			// Just copy the value (Todo: Shrink when necessary)
+			existingProp->value.Copy(value);
+		}
+	} else {
+		// Create a new prop and append it to this instance's prop list
+		props.Append() = new GenProp(propTag, value);
+	}
+}
+
 inline void GenInst::Create() {
 	transform.Reset();
 }
@@ -562,6 +609,10 @@ inline const genwchar* GenInst::GetName() const {
 
 inline const GenTransform* GenInst::GetTransform() const {
 	return &transform;
+}
+
+inline void GenInst::SetTransform(const GenTransform& newTransform) {
+	transform = newTransform;
 }
 
 inline void GenInst::SetMaterial(genid materialId) {

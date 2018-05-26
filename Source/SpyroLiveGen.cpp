@@ -375,33 +375,26 @@ void SendLiveGenMobyInstances() {
 
 	SaveObjectTextures();
 
-	// TEST -- Send objects!
+	// Send objects!
 	if (mobys && numMobys) {
 		GenElements& data = *((GenElements*)rawDataHackyStacky);
+		
+		// Create the generic moby model if it doesn't exist
+		if (!genScene.GetObjectById(GENID_GENERICMOBYMODEL)) {
+			GenModel* genericMobyModel = (GenModel*)genScene.CreateObject(GENID_GENERICMOBYMODEL, GENOBJ_MODEL);
+			GenMod* genericMobyMod = (GenMod*)genScene.CreateObject(GENID_GENERICMOBYMOD, GENOBJ_MOD);
 
-		// Moby model
-		data.type = GENTYPE_U16;
-		data.numElements = 1;
-		data.u16[0] = MOD_BASESPHERE;
-		live->SendStateDirect(GENID_GENERICMOBYMOD, GENMOD_TYPE, data);
+			if (genericMobyModel && genericMobyMod) {
+				genericMobyMod->SetModType(MOD_BASESPHERE);
+				genericMobyMod->SetProperty("radius", GenElements((float)MOBYSPHERESIZE));
+				genericMobyModel->AddModifier(genericMobyMod->GetId());
 
-		GenExElements ex(GENTYPE_PROP);
-		GenProp* prop = (GenProp*)ex.AddElement(GenProp::GetSize(GENTYPE_F32, 1));
-		strcpy(prop->name, "radius");
-		prop->value.type = GENTYPE_F32;
-		prop->value.numElements = 1;
-		prop->value.f32[0] = MOBYSPHERESIZE;
+				live->SendState(genericMobyMod->GetState(GENCOMMON_MULTIPLE));
+				live->SendState(genericMobyModel->GetState(GENCOMMON_MULTIPLE));
+			}
+		}
 
-		data.type = GENTYPE_RAW;
-		data.numElements = ex.GetRawSize();
-		memcpy(data.raw, ex.GetRaw(), ex.GetRawSize());
-		live->SendStateDirect(GENID_GENERICMOBYMOD, GENMOD_PROPS, data);
-
-		data.type = GENTYPE_ID;
-		data.numElements = 1;
-		data.id[0] = GENID_GENERICMOBYMOD;
-		live->SendStateDirect(GENID_GENERICMOBYMODEL, GENMODEL_MODIDS, data);
-
+		// Send every living moby in the level
 		for (int i = 0; (uintptr) &mobys[i + 1] < (uintptr) memory + 0x00200000; i++) {
 			if (mobys[i].state == -1)
 				break; // last moby
@@ -410,37 +403,23 @@ void SendLiveGenMobyInstances() {
 			//if (mobys[i].x == lastMobyX[i] && mobys[i].y == lastMobyY[i] && mobys[i].z == lastMobyZ[i])
 			//	continue; // moby hasn't changed
 
-			float zAdd = MOBYSPHERESIZE;
-			data.type = GENTYPE_ID;
-			data.numElements = 1;
-			data.id[0] = GENID_GENERICMOBYMODEL;
+			GenInst* mobyInst = (GenInst*)genScene.CreateOrGetObject(GENID_MOBYINSTANCES + i, GENOBJ_INST);
+			float mobyX = mobys[i].x * MOBYPOSITIONSCALE, mobyY = mobys[i].y * MOBYPOSITIONSCALE, mobyZ = mobys[i].z * MOBYPOSITIONSCALE;
+
 			if (mobys[i].type < 768 && genScene.GetModelById(GENID_MOBYMODELS + mobys[i].type)) {
-				data.id[0] = GENID_MOBYMODELS + mobys[i].type;
-				zAdd = 0.0f;
+				mobyInst->SetModel(GENID_MOBYMODELS + mobys[i].type);
+			} else {
+				mobyInst->SetModel(GENID_GENERICMOBYMODEL);
+				mobyZ += MOBYSPHERESIZE;
 			}
-			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_MODELID, data);
 
-			data.type = GENTYPE_TRANSFORM;
-			data.numElements = 1;
-			data.transform[0].Reset();
-			data.transform[0].localRotation.z = (float) mobys[i].angle.z / 255.0f * 6.28f;
-			data.transform[0].localTranslation.x = (float) mobys[i].x * MOBYPOSITIONSCALE;
-			data.transform[0].localTranslation.y = (float) mobys[i].y * MOBYPOSITIONSCALE;
-			data.transform[0].localTranslation.z = (float) mobys[i].z * MOBYPOSITIONSCALE + zAdd;
-			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_TRANSFORM, data);
+			char instanceName[250];
+			sprintf(instanceName, "Moby %i (%08X)", i, (uintptr) &mobys[i] - (uintptr) memory);
+			mobyInst->SetTransform(GenTransform(GenVec3(mobyX, mobyY, mobyZ), GenVec3(0.0f, 0.0f, mobys[i].angle.z / 255.0f * 6.28f)));
+			mobyInst->SetMaterial(GENID_MOBYTEXTURES);
+			mobyInst->SetName(instanceName);
 
-			char name[250];
-
-			sprintf(name, "Moby %i (%08X)", i, (uintptr) &mobys[i] - (uintptr) memory);
-			data.type = GENTYPE_CSTRING;
-			data.numElements = strlen(name) + 1;
-			strcpy(data.s8, name);
-			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_NAME, data);
-
-			data.type = GENTYPE_ID;
-			data.numElements = 1;
-			data.id[0] = GENID_MOBYTEXTURES;
-			live->SendStateDirect(GENID_MOBYINSTANCES + i, GENINST_MATIDS, data);
+			live->SendState(mobyInst->GetState(GENCOMMON_MULTIPLE));
 
 			lastMobyX[i] = mobys[i].x;
 			lastMobyY[i] = mobys[i].y;
