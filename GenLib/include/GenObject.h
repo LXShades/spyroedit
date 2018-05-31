@@ -235,7 +235,7 @@ class GenMod : public GenObject {
 		inline GenModifierType GetModType() const;
 
 		inline const GenProp* GetProperty(const char* propTag);
-		inline void SetProperty(const char* propTag, const GenElements& value);
+		inline void SetProperty(const char* propTag, const GenValueSet& value);
 
 		GenMesh* GetMesh();
 		genid GetMeshId() const;
@@ -543,7 +543,7 @@ inline const GenProp* GenMod::GetProperty(const char* propTag) {
 	return nullptr;
 }
 
-inline void GenMod::SetProperty(const char* propTag, const GenElements& value) {
+inline void GenMod::SetProperty(const char* propTag, const GenValueSet& value) {
 	// Try to find the property if it exists
 	GenProp* existingProp = nullptr;
 

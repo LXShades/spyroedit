@@ -1,4 +1,6 @@
 #pragma once
+#include "GenContainer.h"
+#include "GenValueSet.h"
 #include "GenType.h"
 
 #define GENSTATEVERSION 1
@@ -7,19 +9,7 @@ enum GenObjType : genu16;
 struct GenStateTypeTranslator; struct GenStateFilter;
 class GenState;
 
-/* for GenState::PrintInfo/debugging */
 typedef const genchar*(genstateidnamefunc)(genid id); // user-defined function to convert an ID to an ANSI debug name; used for debug printing
-
-/* future compression notes 
-Control byte: [compressionType][numLengthBytes] [lengthOfAffected]
-
-0 = Raw: no compression in thie region
-1 = RLE: same value x number of times
-2 = relative along linear: offset off of a straight line gradient, e.g. average increase of +10 per byte give or take max 5 [gradient][origin][number]
-3 = relative to last
-4 = relative to centre
-5 = pattern repeat (pattern of up to 8 bytes) which repeats itself more than twice
-*/
 
 // State subtypes (or 'state types' per object type)
 // - GENCOMMON_MULTIPLE is a recurring subtype that is used to set or retrieve multiple states from an object.
@@ -60,7 +50,7 @@ struct GenStateInfo {
 class GenSubstate {
 	public:
 		GenStateInfo info;
-		GenElements data;
+		GenValueSet data;
 	
 	public:
 		// State retrieval functions
@@ -95,13 +85,13 @@ class GenSubstate {
 #pragma pack(pop)
 
 // GenState: State data container for Genesis objects. This is used to save, load, transfer all kinds of object information and elements.
-// Data is contained as either GenElements or embedded GenStates. GenStates can be obtained as writable GenState copies, or read directly from the GenStateData.
-// When using data as GenElements, use the Lock function to both read the data and reallocate enough space for it at the same time.
+// Data is contained as either GenValueSet or embedded GenStates. GenStates can be obtained as writable GenState copies, or read directly from the GenStateData.
+// When using data as GenValueSet, use the Lock function to both read the data and reallocate enough space for it at the same time.
 // When using data as embedded states, use AddState, GetState, and GetNumStates. GetNumStates will return 0 if the data isn't state data.
 // GenState has constructors and destructors but also provides equivalent Create and Destroy functions in case it's dynamically allocated.
 // Destroy is safe to call multiple times after initialisation
-// Note: As of 9/01/17, state data size will never be smaller than sizeof (GenStateInfo) + GenElements::GetSize(0, GENTYPE_RAW), in other words guaranteeing
-//   that the type and number fields of the GenElements struct will be available
+// Note: As of 9/01/17, state data size will never be smaller than sizeof (GenStateInfo) + GenValueSet::GetSize(0, GENTYPE_RAW), in other words guaranteeing
+//   that the type and number fields of the GenValueSet struct will be available
 class GenState {
 	public:
 		// Creation/destruction
@@ -112,23 +102,25 @@ class GenState {
 		GenState(genid id, GenStateType type);
 
 		// Construct with elements
-		GenState(genid id, GenStateType type, const GenElements& initElements); // init with a copy of elements
+		GenState(genid id, GenStateType type, const GenValueSet& initElements); // init with a copy of elements
 		~GenState();
 
 	public:
 		// Manual creation/destruction
 		void Create(genid id, GenStateType type);
-		void Create(genid id, GenStateType type, const GenElements& initElements);
+		void Create(genid id, GenStateType type, const GenValueSet& initElements);
 		void Create(const GenState& srcCopy);
 		void Create();
 		void Destroy();
 
+	public:
 		// Element functions
-		GenElements* Lock(); // Locks and returns element data without reallocating anything
-		GenElements* Lock(GenType dataType, genu32 numElements); // Locks data with a size to contain elements of type and num.
+		GenValueSet* Lock(); // Locks and returns element data without reallocating anything
+		GenValueSet* Lock(GenType dataType, genu32 numElements); // Locks data with a size to contain elements of type and num.
 		void Unlock();
 
-		const GenElements& GetElements() const; // Returns a const pointer to elements without locking. For ease of use. Ensure the class isn't locked during this time.
+		bool SetElements(const GenValueSet& values); // Sets the elements directly from a source valueset. Fails if locked.
+		const GenValueSet& GetElements() const; // Returns a const pointer to elements without locking. For ease of use. Ensure the class isn't locked during this time.
 
 		bool ClearElements(); // Clears state elements (not state info). Must be unlocked.
 
@@ -164,9 +156,9 @@ class GenState {
 		inline void SetInfo(const GenStateInfo& infoIn) {substate->info.id = infoIn.id; substate->info.type = infoIn.type;} // Warning: ignores dataSize. Use Lock to change that.
 		inline void SetInfo(genid id, GenStateType type) {substate->info.id = id; substate->info.type = type;}
 
-		inline genu32 GetSize() const {return substate->info.dataSize;} // returns total size of embedded GenElements OR embedded states
+		inline genu32 GetSize() const {return substate->info.dataSize;} // returns total size of embedded GenValueSet OR embedded states
 		inline GenType GetElementType() const {return (GenType) substate->data.type;}
-		inline genu32 GetNumElements() const {return substate->data.numElements;}
+		inline genu32 GetNumElements() const {return substate->data.numValues;}
 
 		GenObjType GetObjType() const; // Discovers this state's object type based on its state type. If GENCOMMON_MULTIPLE, this also searches embedded states
 		
@@ -183,7 +175,7 @@ class GenState {
 
 		genbool8 locked;
 
-		void SetStateDataSize(genu32 size);
+		void SetSubstateSize(genu32 size);
 };
 
 struct GenStateTypeTranslator {
@@ -284,5 +276,5 @@ inline const char* GenState::GetTypeName(GenStateType type) {
 }
 
 inline int GenSubstate::GetSize(GenType type, genu32 numElements) {
-	return sizeof (GenStateInfo) + GenElements::GetSize(type, numElements);
+	return sizeof (GenStateInfo) + GenValueSet::GetSize(type, numElements);
 }

@@ -8,7 +8,7 @@ template<typename ItemType>
 class GenArray {
 	public:
 		GenArray() : items(nullptr), numItems(0), allocationSize(0) {};
-		~GenArray();
+		inline ~GenArray();
 
 	private:
 		inline void Reallocate(gens32 newNumItems);
@@ -17,15 +17,21 @@ class GenArray {
 		// Appends a default-constructed item and returns a reference
 		inline ItemType& Append();
 
-		// Destroys all items and cleans up the list
+		// Destroys all items and cleans up the array
 		inline void Clear();
 
+		// Returns the number of items in the array
+		inline gens32 GetNum() const;
+
+	public:
 		// Item getters
 		inline ItemType& operator[](gens32 index);
 
 		// C++wuteveryearitwas iterators
 		inline ItemType* begin() {return items;}
 		inline ItemType* end() {return &items[numItems];}
+		inline const ItemType* begin() const {return items;}
+		inline const ItemType* end() const {return &items[numItems];}
 
 	private:
 		ItemType* items;
@@ -50,7 +56,7 @@ GENARRAY_FUNC ItemType& GenArray<ItemType>::Append() {
 }
 
 GENARRAY_FUNC void GenArray<ItemType>::Reallocate(gens32 newNumItems) {
-	uint32 numBytesRequired = newNumItems * sizeof (ItemType);
+	genu32 numBytesRequired = newNumItems * sizeof (ItemType);
 	
 	if (numBytesRequired > allocationSize) {
 		// Expand the allocation size until it fits the neccessary size
@@ -98,4 +104,8 @@ GENARRAY_FUNC void GenArray<ItemType>::Clear() {
 	items = nullptr;
 	numItems = 0;
 	allocationSize = 0;
+}
+
+GENARRAY_FUNC int GenArray<ItemType>::GetNum() const {
+	return numItems;
 }

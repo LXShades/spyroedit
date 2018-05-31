@@ -78,6 +78,7 @@ int playingFrame = 0;
 void UpdateLiveGen();
 void LiveGenOnLevelEntry();
 void SpyroOnLevelEntry();
+#include <utility>
 
 void SpyroLoop() {
 	UpdateSpyroPointers();

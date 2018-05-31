@@ -237,7 +237,7 @@ void UpdateLiveGen() {
 	}
 }
 
-char rawDataHackyStacky[sizeof (GenElements) + 256 * 4 * sizeof (gens32)];
+char rawDataHackyStacky[sizeof (GenValueSet) + 256 * 4 * sizeof (gens32)];
 SceneSectorHeader* levelOnStart = NULL;
 
 void LiveGenOnLevelEntry() {
@@ -280,12 +280,12 @@ void SendLiveGenScene() {
 	if (!live)
 		return;
 	
-	GenElements& data = *((GenElements*)rawDataHackyStacky); // use a fixed-size stack portion for all our data today~
+	GenValueSet& data = *((GenValueSet*)rawDataHackyStacky); // use a fixed-size stack portion for all our data today~
 
 	// Send scene texture
 	data.type = GENTYPE_CSTRING;
 	GetLevelFilename(data.s8, SEF_TEXTURES);
-	data.numElements = strlen(data.s8) + 1;
+	data.numValues = strlen(data.s8) + 1;
 	
 	if (FILE* texExists = fopen(data.s8, "rb"))
 		fclose(texExists); // no need to save texture file; it already exists
@@ -377,7 +377,7 @@ void SendLiveGenMobyInstances() {
 
 	// Send objects!
 	if (mobys && numMobys) {
-		GenElements& data = *((GenElements*)rawDataHackyStacky);
+		GenValueSet& data = *((GenValueSet*)rawDataHackyStacky);
 		
 		// Create the generic moby model if it doesn't exist
 		if (!genScene.GetObjectById(GENID_GENERICMOBYMODEL)) {
@@ -386,7 +386,7 @@ void SendLiveGenMobyInstances() {
 
 			if (genericMobyModel && genericMobyMod) {
 				genericMobyMod->SetModType(MOD_BASESPHERE);
-				genericMobyMod->SetProperty("radius", GenElements((float)MOBYSPHERESIZE));
+				genericMobyMod->SetProperty("radius", GenValueSet((float)MOBYSPHERESIZE));
 				genericMobyModel->AddModifier(genericMobyMod->GetId());
 
 				live->SendState(genericMobyMod->GetState(GENCOMMON_MULTIPLE));
@@ -433,7 +433,7 @@ void SendLiveGenSpyro() {
 		return;
 
 	GenState modelState(GENID_SPYROMODEL, GENMODEL_MODIDS);
-	GenElements* elems = modelState.Lock(GENTYPE_ID, 1);
+	GenValueSet* elems = modelState.Lock(GENTYPE_ID, 1);
 	elems->id[0] = GENID_SPYROMODELMOD;
 	modelState.Unlock();
 
@@ -485,7 +485,7 @@ void SendLiveGenSpyro() {
 		}
 	}
 
-	elems->numElements = numSides;
+	elems->numValues = numSides;
 	faceState.Unlock();
 
 	GenState instState(GENID_SPYROINSTANCE, GENINST_MODELID);
@@ -531,7 +531,7 @@ void SendLiveGenMobyModel(int modelId, int mobyId = -1) {
 	GetLevelFilename(filename, SEF_OBJTEXTURES);
 
 	GenState texState(GENID_MOBYTEXTURES, GENMAT_SOURCEFILE); // todo genSceneify
-	GenElements* elems = texState.Lock(GENTYPE_CSTRING, strlen(filename) + 1);
+	GenValueSet* elems = texState.Lock(GENTYPE_CSTRING, strlen(filename) + 1);
 		
 	strcpy(elems->s8, filename);
 	texState.Unlock();

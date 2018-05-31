@@ -25,7 +25,7 @@ class ILiveGen {
 
 		virtual void SendState(const GenState& stateIn, lgnodemask nodeMask = LGALLNODES) = 0;
 		virtual void SendState(const GenSubstate& stateDataIn, lgnodemask nodeMask = LGALLNODES) = 0;
-		virtual void SendStateDirect(genid id, GenStateType type, const GenElements& elements, lgnodemask nodeMask = LGALLNODES) = 0;
+		virtual void SendStateDirect(genid id, GenStateType type, const GenValueSet& elements, lgnodemask nodeMask = LGALLNODES) = 0;
 		virtual bool GetState(GenState* stateOut, lgnodemask* nodeMaskOut, lgnodemask nodeMaskIn = LGALLNODES) = 0;
 		
 		virtual genu16 GetLocalPort() const = 0;
