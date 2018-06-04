@@ -13,13 +13,34 @@ const uint16 BUT_SELECT = 0x0100, BUT_L3 = 0x0200, BUT_R3 = 0x0400, BUT_START = 
 // Spyro struct definitions follow!
 #pragma pack(push, 1)
 
-// Pointer type used to access PS1 memory pointers
-template <typename PointerType>
+// Direct pointer wrapper for PS1 pointers
+template <typename PointerType = void>
 struct SpyroPointer {
 	uint32 address;
 
+	SpyroPointer() = default;
+	SpyroPointer(uint32 initialValue) {
+		address = initialValue;
+	}
+
+	static void* SpyroToLocal(uint32 spyro) {
+		return (uint32)umem32 + (spyro & 0x001FFFFF);
+	}
+
+	static uint32 LocalToSpyro(void* spyro) {
+		return ((uintptr)spyro - (uintptr)umem32) | 0x80000000;
+	}
+
+	static SpyroPointer FromLocal(void* address) {
+		address = 0x80000000 | ((uintptr)address - (uintptr)umem32);
+	}
+
 	inline operator PointerType*() {
-		return (PointerType*) ((uintptr)umem32 + (address & 0x003FFFFF));
+		if (address & 0x003FFFFF) {
+			return (PointerType*) ((uintptr)umem32 + (address & 0x003FFFFF));
+		} else {
+			return nullptr;
+		}
 	}
 
 	inline PointerType* operator->() {
@@ -146,141 +167,6 @@ struct SkySectorHeaderS1 {
 	uint32 zTerminator;
 
 	uint32 data32[1];
-};
-
-struct SceneFace;
-struct SceneSectorHeader {
-	uint16 centreY, centreX;
-	uint16 centreRadiusAndFlags; // flags begin >>12
-	uint16 centreZ;
-	uint32 xyPos, zPos;
-	uint8 numLpVertices, numLpColours, numLpFaces, lpUnknown;
-	uint8 numHpVertices, numHpColours, numHpFaces, hpUnknown;
-	uint32 zTerminator;
-
-	union {
-		uint32 data32[1]; uint16 data16[2]; uint8 data8[4];
-	};
-
-	inline int GetSize() const {
-		return (7 + numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2 + numHpFaces * 4) * 4;
-	}
-
-	inline int GetFlistId() const {
-		return zPos & 0x1FFF; // since the per-face references max at 1FFF, this is a fairly safe assumption
-	}
-
-	inline void SetFlistId(uint32 val) {
-		zPos = (zPos & (0xFFFFE000)) | (val & 0x1FFF);
-	}
-	
-	inline uint32* GetLpVertices() {
-		return data32;
-	}
-
-	inline uint32* GetLpColours() {
-		return &data32[numLpVertices];
-	}
-
-	inline uint32* GetLpFaces() {
-		return &data32[numLpVertices + numLpColours];
-	}
-
-	inline uint32* GetHpVertices() {
-		return &data32[numLpVertices + numLpColours + numLpFaces * 2];
-	}
-
-	inline uint32* GetHpColours() {
-		return &data32[numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices];
-	}
-
-	inline SceneFace* GetHpFaces() {
-		return (SceneFace*) &data32[numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2];
-	}
-};
-
-struct SpyroScene {
-	uint32 size;
-	uint32 iForget;
-	uint32 numSectors;
-
-	SpyroPointer<SceneSectorHeader> sectors[1];
-};
-
-struct SceneFace {
-	inline int GetTexture() const {
-		if (game != SPYRO1)
-			return word4 & 0x7F;
-		else
-			return word3 & 0x7F;
-	}
-
-	inline void SetTexture(int texture) {
-		if (game != SPYRO1)
-			word4 = (word4 & ~0x7F) | (texture & 0x7F);
-		else
-			word3 = (word3 & ~0x7F) | (texture & 0x7F);
-	}
-
-	inline bool GetFlip() const {
-		if (game != SPYRO1)
-			return (word4 >> 10) & 1;
-		else
-			return (word4 >> 1) & 1;
-	}
-
-	inline void SetFlip(bool flip) {
-		if (game != SPYRO1)
-			word4 = (word4 & ~0x400) | ((int) flip << 10);
-		else
-			word4 = (word4 & ~2) | ((int) flip << 1);
-	}
-
-	inline void SetDepth(int depth) {
-		if (game == SPYRO1)
-			word4 = (word4 & ~0xF8) | (depth << 3 & 0xF8);
-	}
-
-	inline int GetDepth() const {
-		if (game == SPYRO1)
-			return word4 >> 3 & 0x1F;
-	}
-
-	inline int GetEdge(int edgeId) const {
-		if (game != SPYRO1) {
-			switch (edgeId) {
-				case 0: return word3 >> 19;
-				case 1: return word3 >> 6 & 0x1FFF;
-				case 2: return (word4 >> 6 & 0x1FC0) | (word3 & 0x3F);
-				case 3: return word4 >> 19;
-			}
-		}
-	}
-
-	inline void SetEdge(int edgeId, uint32 val) {
-		if (game != SPYRO1) {
-			switch (edgeId) {
-				case 0: word3 = (word3 & ~(0xFFFFFFFF << 19)) | ((val & 0x1FFF) << 19); break;
-				case 1: word3 |= (val & 0x1FFF) << 6; break;
-				case 2: 
-					word3 = (word3 & ~0x3F) | (val & 0x3F);
-					word4 = (word4 & ~0x7F000) | ((val & 0x1FC0) << 6);
-					break;
-				case 3: word4 = (word4 & ~(0xFFFFFFFF << 19)) | ((val & 0x1FFF) << 19); break;
-			}
-		}
-	}
-	
-	union {
-		uint8 verts[4]; // 0x00
-		uint32 word1; // 0x00
-	};
-	union {
-		uint8 colours[4]; // 0x04
-		uint32 word2; // 0x04
-	};
-	uint32 word3; // 0x08
-	uint32 word4; // 0x0C
 };
 
 struct ModelAnimFrameInfo {
@@ -539,8 +425,6 @@ extern uint32* levelNames;
 extern int numLevelNames;
 
 extern uint32 texEditFlags; // of the TextureEditFlags enum
-
-extern SpyroScene* sceneData;
 
 extern SpyroSky* skyData;
 extern uint32* skyNumSectors;

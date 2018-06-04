@@ -106,6 +106,9 @@
     <ClInclude Include="Source\Online.h" />
     <ClInclude Include="Source\Powers.h" />
     <ClInclude Include="Source\SpyroData.h" />
+    <ClInclude Include="Source\SpyroGenesis.h" />
+    <ClInclude Include="Source\SpyroLiveGen.h" />
+    <ClInclude Include="Source\SpyroScene.h" />
     <ClInclude Include="Source\SpyroTextures.h" />
     <ClInclude Include="Source\Types.h" />
     <ClInclude Include="Source\Vram.h" />
@@ -122,6 +125,7 @@
     <ClCompile Include="Source\Powers.cpp" />
     <ClCompile Include="Source\SpyroData.cpp" />
     <ClCompile Include="Source\SpyroLiveGen.cpp" />
+    <ClCompile Include="Source\SpyroScene.cpp" />
     <ClCompile Include="Source\SpyroTextures.cpp" />
     <ClCompile Include="Source\Vram.cpp" />
     <ClCompile Include="Source\Window.cpp" />

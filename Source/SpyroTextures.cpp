@@ -2,6 +2,7 @@
 #include "SpyroTextures.h"
 #include "Vram.h"
 #include "Main.h"
+#include "SpyroScene.h"
 
 #include <Windows.h>
 #include <cstdio> // sprintf
@@ -1576,7 +1577,7 @@ void PinkMode() {
 }
 
 void IndieMode() {
-	if (!sceneData || (!textures && !hqTextures))
+	if (!scene.spyroScene || (!textures && !hqTextures))
 		return;
 
 	UpdatePaletteList();
@@ -1597,8 +1598,8 @@ void IndieMode() {
 	CompleteLQPalettes();
 
 	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < sceneData->numSectors; i ++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i ++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int lpColourStart = sector->numLpVertices;
 		int lpFaceStart = sector->numLpVertices + sector->numLpColours;
 		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;

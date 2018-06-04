@@ -4,6 +4,7 @@
 #include "Online.h"
 #include "Main.h"
 #include "SpyroTextures.h"
+#include "SpyroScene.h"
 #include "Powers.h"
 
 #include <cstdio>
@@ -74,6 +75,8 @@ HWND static_genSceneStatus, static_genCollisionStatus;
 HWND edit_coordsInX, edit_coordsInY, edit_coordsInZ, edit_coordsInFlag;
 HWND edit_coordsOutHalfwordBlock, edit_coordsOutWordBlock, edit_coordsOutWord;
 HWND static_coordsOutHalfwordBlock, static_coordsOutWordBlock, static_coordsOutWord;
+HWND listbox_sceneSectorStatus;
+HWND static_sectorSizes;
 
 // Status page
 struct StatusObject {
@@ -83,7 +86,7 @@ struct StatusObject {
 	bool8 absolute;
 };
 
-StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Scene model", (uintptr) &sceneData}, 
+StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Scene model", (uintptr) &scene.spyroScene.address}, 
 								{NULL, "Sky model", (uintptr) &skyData}, {NULL, "Collision data", (uintptr) &spyroCollision.address}, 
 								{NULL, "Object models", (uintptr) &mobyModels}, 
 								{NULL, "Scene occlusion", (uintptr) &sceneOcclusion}, {NULL, "Sky occlusion", (uintptr) &skyOcclusion}, 
@@ -396,6 +399,11 @@ void CreateGenesisPage() {
 	AddPageLine();
 	static_coordsOutWord = AddPageControl("STATIC", "Word:", 0, 7, 80);
 	edit_coordsOutWord = AddPageControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+
+	AddPageLine();
+	static_sectorSizes = AddPageControl("STATIC", "", 0, 7, 300);
+	AddPageLine();
+	listbox_sceneSectorStatus = AddPageControl("LISTBOX", "Scene sector info", WS_BORDER | WS_VSCROLL, 0, 290, 10);
 }
 
 void Open_Windows() {
@@ -434,8 +442,13 @@ void WinLoop() {
 	// Main update
 	MainLoop();
 
-	// Status page update
-	UpdateStatusPage();
+	// Page updates
+	switch (SendMessage(tab, TCM_GETCURSEL, 0, 0)) {
+		case PAGE_STATUS:
+			UpdateStatusPage(); break;
+		case PAGE_GENESIS:
+			UpdateGenesisPage(); break;
+	}
 
 	// Update window title
 	char titleMsg[256];
@@ -1060,9 +1073,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 }
 
 void UpdateStatusPage() {
-	if (SendMessage(tab, TCM_GETCURSEL, 0, 0) != PAGE_STATUS)
-		return;
-
 	// Update status objects
 	for (int i = 0; i < sizeof (statusObjects) / sizeof (StatusObject); i++) {
 		char text[256];
@@ -1080,6 +1090,26 @@ void UpdateStatusPage() {
 
 	// Update memory monitor
 	RedrawWindow(static_memVisualiser, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+}
+
+bool isGenesisPageValid = false;
+
+void UpdateGenesisPage() {
+	if (!isGenesisPageValid && scene.spyroScene) {
+		char itemString[200];
+		SendMessage(listbox_sceneSectorStatus, LB_RESETCONTENT, 0, 0);
+		
+		for (int i = 0; i < scene.spyroScene->numSectors; ++i) {
+			SceneSectorHeader* sector = scene.spyroScene->sectors[i];
+			sprintf(itemString, "Addr: %08X Size: %i V/F/C: %i/%i/%i", scene.spyroScene->sectors[i].address, sector->GetSize(), sector->numHpVertices, sector->numHpFaces, sector->numHpColours);
+			SendMessage(listbox_sceneSectorStatus, LB_ADDSTRING, 0, (LPARAM)itemString);
+		}
+
+		sprintf(itemString, "Original scene size: %i Current: %i", scene.GetOriginalSceneSize(), scene.spyroScene->GetSize());
+		SendMessage(static_sectorSizes, WM_SETTEXT, 0, (LPARAM)itemString);
+
+		isGenesisPageValid = true;
+	}
 }
 
 void UpdateTextureWindow() {

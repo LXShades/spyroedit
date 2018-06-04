@@ -1,11 +1,10 @@
 #include "SpyroData.h"
 #include "Online.h"
 #include "Powers.h"
+#include "SpyroScene.h" // GenerateCrater
 
 #include <cmath>
 #include <Windows.h>
-
-void MakeCrater(int craterX, int craterY, int craterZ);
 
 uint32 powers = 0;
 
@@ -52,7 +51,7 @@ void UpdatePowers() {
 				shockwaveDist = 1000;
 				
 				if (curPowers & PWR_HEADBASHPOCALYPSE)
-					MakeCrater(curSpyro->x, curSpyro->y, curSpyro->z);
+					scene.GenerateCrater(curSpyro->x, curSpyro->y, curSpyro->z);
 			}
 		}
 

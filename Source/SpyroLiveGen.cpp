@@ -2,34 +2,13 @@
 #include "SpyroData.h"
 #include "Main.h"
 #include "SpyroTextures.h"
-
 #include "GenLive.h"
 #include "GenObject.h"
+#include "SpyroGenesis.h"
+#include "SpyroScene.h"
 
 #include <cstdio>
 #include <cwchar> // for instance name
-
-#define GENID_SCENESECTORMODEL 1000
-#define GENID_SCENESECTORMOD 1256
-#define GENID_SCENESECTORINSTANCE 2537
-#define GENID_SCENETEXTURE 3000
-#define GENID_COLLISIONDATAMOD 9001
-#define GENID_COLLISIONDATAMODEL 9002
-#define GENID_COLLISIONDATAINSTANCE 9003
-#define GENID_GENERICMOBYMOD 11221
-#define GENID_GENERICMOBYMODEL 11222
-#define GENID_GENERICMOBYMODELMOD 11223
-#define GENID_MOBYMODELS 534000
-#define GENID_MOBYPREVIEWINSTANCES 536000
-#define GENID_MOBYINSTANCES 538000
-#define GENID_MOBYMODS 540000
-#define GENID_MOBYTEXTURES 542000
-#define GENID_SPYROMODEL 22330
-#define GENID_SPYROMODELMOD 22331
-#define GENID_SPYROINSTANCE 22334
-
-#define MOBYPOSITIONSCALE 0.000625f
-#define MOBYSPHERESIZE 0.15f
 
 uint32 mobyVertAdjustTable[127] = {
 	0xFE9FD3FA, 0xFF5FD3FA, 0x001FD3FA, 0x00DFD3FA, 0x019FD3FA, 0xFE9FEBFA, 0xFF5FEBFA, 0x001FEBFA, 0x00DFEBFA, 0x019FEBFA, 0xFE8003FA, 0xFF4003FA, 0x000003FA, 0x00C003FA,
@@ -57,10 +36,7 @@ void SendLiveGenMobyInstances();
 void SetupCollisionLinks();
 void RebuildCollisionTree();
 void UpdateFlaggedMemory();
-SceneSectorHeader* ResizeSector(int sectorId, const SceneSectorHeader* newHead);
 
-void BuildSpyroSector(int sectorId);
-void BuildGenSector(int sectorId);
 void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrame);
 void BuildSpyroMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrame);
 
@@ -83,12 +59,13 @@ bool colltreeInvalid = false; // set to true to rebuild colltris at the end of t
 800749EC */
 
 bool ConnectLiveGen() {
+	// Disconnect old session
 	if (live) {
 		DestroyLiveGen(live);
 		live = NULL;
 	}
 
-	// Connect
+	// Connect new session
 	live = CreateLiveGen();
 
 	if (!live)
@@ -142,16 +119,16 @@ void UpdateLiveGen() {
 		// Check if model has changed (e.g. mods changed, consequently mesh has changed)
 		if (objId >= GENID_SCENESECTORMODEL && objId <= GENID_SCENESECTORMODEL + 256 && objType == GENOBJ_MODEL) {
 			// in case the mods have changed
-			BuildSpyroSector(objId - GENID_SCENESECTORMODEL);
+			scene.ConvertGenToSpyro(objId - GENID_SCENESECTORMODEL);
 		}
 
 		// Check if a model's mesh has changed
-		if (objType == GENOBJ_MESH && sceneData) {
-			for (int i = 0; i < sceneData->numSectors; i++) {
+		if (objType == GENOBJ_MESH && scene.spyroScene) {
+			for (int i = 0; i < scene.spyroScene->numSectors; i++) {
 				if (GenModel* model = (GenModel*) genScene.GetObjectById(GENID_SCENESECTORMODEL + i)) {
 					genid id1 = obj->GetId(), id2 = model->GetMeshId();
 					if (obj == model->GetMesh())
-						BuildSpyroSector(i);
+						scene.ConvertGenToSpyro(i);
 				}
 			}
 		}
@@ -238,7 +215,6 @@ void UpdateLiveGen() {
 }
 
 char rawDataHackyStacky[sizeof (GenValueSet) + 256 * 4 * sizeof (gens32)];
-SceneSectorHeader* levelOnStart = NULL;
 
 void LiveGenOnLevelEntry() {
 	if (!genSceneCreated) {
@@ -258,15 +234,9 @@ void LiveGenOnLevelEntry() {
 			inst->SetMaterial(GENID_SCENETEXTURE);
 		}
 
+		scene.SetGenScene(&genScene);
+
 		genSceneCreated = true;
-	}
-
-	// Initialise gensectors and validate all
-	if (sceneData) {
-		for (int s = 0; s < sceneData->numSectors; s++)
-			BuildGenSector(s);
-
-		genScene.ValidateAllObjects();
 	}
 
 	// Create the links between collision data and scenery data
@@ -294,28 +264,8 @@ void SendLiveGenScene() {
 
 	live->SendStateDirect(GENID_SCENETEXTURE, GENMAT_SOURCEFILE, data);
 
-	// Send each sector as a GenState. Includes an instance, model and edit modifier
-	for (int i = 0; i < sceneData->numSectors; i++) {
-		GenState meshState(0xFFFFFFFF, GENCOMMON_MULTIPLE);
-		GenState combinedState(0, GENCOMMON_MULTIPLE);
-		
-		// Obtain states for instance, modifier and model from the global scene
-		GenState instState = genScene.GenObject::GetState(GENID_SCENESECTORINSTANCE + i, GENCOMMON_MULTIPLE);
-		GenState modState = genScene.GenObject::GetState(GENID_SCENESECTORMOD + i, GENCOMMON_MULTIPLE);
-		GenState modelState = genScene.GenObject::GetState(GENID_SCENESECTORMODEL + i, GENCOMMON_MULTIPLE);
-
-		// Modifiers erm.... set the mesh states so that they have the, uh... same state as...what?
-		if (GenMod* mod = genScene.GetModById(GENID_SCENESECTORMOD + i)) {
-			meshState.SetInfo(mod->GetMeshId(), GENCOMMON_MULTIPLE);
-
-			genScene.GetState(&meshState);
-		}
-
-		GenState* stateList[] = {&instState, &modState, &modelState, &meshState};
-
-		combinedState.AddSubstates(stateList, 4);
-		live->SendState(combinedState);
-	}
+	// Send scene geometry
+	scene.UploadToGen();
 }
 
 void SendLiveGenCollision() {
@@ -606,490 +556,6 @@ void UpdateFlaggedMemory() {
 			}
 		}
 	}
-}
-
-void BuildSpyroSector(int sectorId) {
-	if (sectorId >= sceneData->numSectors || sectorId < 0)
-		return;
-	if (!genSectors[sectorId])
-		return;
-
-	GenMesh* genSector = genSectors[sectorId]->GetMesh();
-
-	if (!genSector)
-		return;
-
-	SceneSectorHeader* sector = sceneData->sectors[sectorId];
-	bool flatSector = ((sector->centreRadiusAndFlags >> 12) & 1);
-	int oldNumVerts = sector->numHpVertices, oldNumFaces = sector->numHpFaces;
-	int numVerts = genSector->GetNumVerts(), numFaces = genSector->GetNumFaces(), numColours = genSector->GetNumColours();
-
-	// 000A96D0 flipped triangle in Midday Gardens
-
-	// Cap number of elements
-	if (numVerts > 0xFF) numVerts = 0xFF;
-	if (numFaces > 0xFF) numFaces = 0xFF;
-	if (numColours > 0xFF) numColours = 0xFF;
-
-	// Resize the sector if necessary
-	if (sector->numHpVertices != numVerts || sector->numHpFaces != numFaces || sector->numHpColours != numColours) {
-		SceneSectorHeader newHead = *sector;
-	
-		newHead.numHpVertices = numVerts;
-		newHead.numHpFaces = numFaces;
-		newHead.numHpColours = numColours;
-
-		if (SceneSectorHeader* newSector = ResizeSector(sectorId, &newHead))
-			sector = newSector;
-		else
-			return;
-	}
-
-	// Begin sector refresh
-	int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
-	int hpColourStart = hpVertexStart + numVerts;
-	int hpFaceStart = hpColourStart + sector->numHpColours * 2;
-
-	// UPDATE VERTICES ********
-	int oldSectorX = sector->xyPos >> 16, oldSectorY = (sector->xyPos & 0xFFFF), oldSectorZ = ((sector->zPos >> 14) & 0xFFFF) >> 2;
-	int newSectorX = 65535, newSectorY = 65535, newSectorZ = 65535;
-	const GenMeshVert* genVerts = genSector->GetVerts();
-	IntVector absoluteVerts[256];
-
-	for (int i = 0; i < numVerts; i++) {
-		absoluteVerts[i].x = (genVerts[i].pos.x / WORLDSCALE + 0.5f);
-		absoluteVerts[i].y = (genVerts[i].pos.y / WORLDSCALE + 0.5f);
-		absoluteVerts[i].z = (genVerts[i].pos.z / WORLDSCALE + 0.5f);
-	}
-
-	// Set new sector position according to the lowest vertex coordinates
-	// Find the lowest coordinate for every vertex (to use as new sectorX/Y/Z)
-	for (int i = 0; i < numVerts; i++) {
-		if (absoluteVerts[i].x < newSectorX)
-			newSectorX = absoluteVerts[i].x;
-		if (absoluteVerts[i].y < newSectorY)
-			newSectorY = absoluteVerts[i].y;
-		if (absoluteVerts[i].z < newSectorZ)
-			newSectorZ = absoluteVerts[i].z / 2 * 2; // fix splits =/
-	}
-
-	sector->xyPos = ((newSectorX & 0xFFFF) << 16) | (newSectorY & 0xFFFF);
-	sector->zPos = (sector->zPos & 0x3FFF) | (((newSectorZ & 0xFFFF) << 14) << 2);
-
-	int sectorX = sector->xyPos >> 16, sectorY = (sector->xyPos & 0xFFFF), sectorZ = ((sector->zPos >> 14) & 0xFFFF) >> 2;
-
-	int32 minX = INT_MAX, minY = INT_MAX, minZ = INT_MAX;
-	int32 maxX = INT_MIN, maxY = INT_MIN, maxZ = INT_MIN;
-	for (int i = 0; i < numVerts; i++) {
-		uint32 curVertex = sector->data32[hpVertexStart + i];
-		int oldX = ((curVertex >> 19 & 0x1FFC) >> 3), oldY = ((curVertex >> 8 & 0x1FFC) >> 3), oldZ = ((curVertex << 3 & 0x1FFC) >> 3);
-		int newX = absoluteVerts[i].x, newY = absoluteVerts[i].y, newZ = absoluteVerts[i].z;
-
-		// Before we start: invalidate the collision tree if this vertex moved into a different collision area
-		if (!colltreeInvalid && ((oldX<<1) + sectorX) >> 8 != newX >> 8 || ((oldY<<1) + sectorY) >> 8 != newY >> 8 || ((oldZ<<1) + sectorZ) >> 8 != newZ >> 8)
-			colltreeInvalid = true;
-
-		// Relocate the vertex
-		curVertex = ((newX - sectorX) << 2 & 0x1FFC) << 19;
-		curVertex |= ((newY - sectorY) << 2 & 0x1FFC) << 8;
-
-		if (!flatSector && game != SPYRO1)
-			curVertex |= ((newZ - sectorZ) << 2 & 0x1FFC) >> 3;
-		else if (!flatSector && game == SPYRO1)
-			curVertex |= ((newZ - sectorZ) << 2 & 0x1FFC) >> 2;
-		else if (flatSector)
-			curVertex |= ((newZ - sectorZ) << 5 & 0x1FFC) >> 3;
-
-		sector->data32[hpVertexStart + i] = curVertex;
-
-		// Find a matching LP vertex and move it too
-		int closestLpVert = 0;
-		int closestLpDist = 9999;
-		for (int j = 0; j < sector->numLpVertices; j++) {
-			int lpX = (sector->data32[j] >> 19 & 0x1FFC) >> 3, lpY = ((sector->data32[j] >> 8 & 0x1FFC) >> 3), lpZ = ((sector->data32[j] << 3 & 0x1FFC) >> 3);
-			int xDist = lpX - oldX, yDist = lpY - oldY, zDist = lpZ - oldZ;
-			int dist = xDist * xDist + yDist * yDist + zDist * zDist;
-
-			if (dist > closestLpDist)
-				continue;
-
-			closestLpDist = dist;
-			closestLpVert = j;
-		}
-
-		if (closestLpDist <= 4*4*4)
-			sector->data32[closestLpVert] = curVertex;
-
-		// Update vert coordinate boundaries
-		if (newX < minX) minX = newX;
-		if (newY < minY) minY = newY;
-		if (newZ < minZ) minZ = newZ;
-		if (newX > maxX) maxX = newX;
-		if (newY > maxY) maxY = newY;
-		if (newZ > maxZ) maxZ = newZ;
-	}
-
-	// Update the sector's centre info based on the boundaries measured
-	sector->centreX = (minX + maxX) / 2;
-	sector->centreY = (minY + maxY) / 2;
-	sector->centreZ = (minZ + maxZ) / 2;
-	sector->centreRadiusAndFlags = (sector->centreRadiusAndFlags & 0xF000) | ((Distance(minX, minY, minZ, maxX, maxY, maxZ) / 2) & 0xFFF);
-
-	// UPDATE COLOURS
-	const genu32* genColours = genSector->GetColours();
-	for (int i = 0; i < numColours; i++) {
-		sector->data32[hpColourStart + i] = genColours[i] & 0x00FFFFFF;
-		sector->data32[hpColourStart + numColours + i] = genColours[i] & 0x00FFFFFF;
-	}
-
-	// UPDATE FACES
-	SceneFace* faces = (SceneFace*) &sector->data32[hpFaceStart];
-	const GenMeshFace* genFaces = genSector->GetFaces();
-	for (int i = 0; i < numFaces; i++) {
-		int add = (genFaces[i].numSides == 3) ? 1 : 0;
-		bool isFlipped = faces[i].GetFlip();
-		for (int j = 0; j < genFaces[i].numSides; j++) {
-			faces[i].verts[j + add] = genFaces[i].sides[3 - add - j].vert;
-			faces[i].colours[j + add] = genFaces[i].sides[3 - add - j].colour;
-		}
-
-		if (genFaces[i].numSides == 3)
-			faces[i].verts[0] = faces[i].verts[1];
-
-		// Safety
-		for (int j = 0; j < 4; j++) {
-			if (numVerts)
-				faces[i].verts[j] %= numVerts;
-			else
-				faces[i].verts[j] = 0;
-			if (numColours)
-				faces[i].colours[j] %= numColours;
-			else
-				faces[i].colours[j] = 0;
-		}
-
-		faces[i].word3 = 0x5732B824;
-		faces[i].word4 = 0x577284AD;
-		faces[i].SetFlip(false);
-		faces[i].SetDepth(1);
-		faces[i].SetTexture(1);
-	}
-
-	// UPDATE TEXTURES
-	int numTexs = 0;
-	float textureWidth = (float) TEXTURESPERROW; // width in texture units (64px)
-	float textureHeight = (float) ((*numTextures + TEXTURESPERROW - 1) / TEXTURESPERROW); // height in texture units (64px)
-	const GenVec2* genUvs = genSector->GetUvs();
-	int numGenUvs = genSector->GetNumUvs();
-
-	if (numTextures)
-		numTexs = *numTextures;
-
-	for (int i = 0; i < numFaces; i++) {
-		// Find the average point of the face's UVs
-		GenVec2 uv = {0.0f, 0.0f};
-		float numUvs = 0.0f;
-
-		for (int j = 0; j < genFaces[i].numSides; j++) {
-			if (genFaces[i].sides[j].uv >= numGenUvs)
-				continue;
-			uv.x += genUvs[genFaces[i].sides[j].uv].x;
-			uv.y += genUvs[genFaces[i].sides[j].uv].y;
-			numUvs += 1.0f;
-		}
-
-		uv.x /= numUvs; uv.y /= numUvs;
-
-		// Determine the average direction of each point from the centre point to decide whether the face should be flipped
-		int avgDirection = 0;
-		for (int j = 1; j < genFaces[i].numSides; j++) {
-			if (genFaces[i].sides[j].uv >= numGenUvs || genFaces[i].sides[j - 1].uv >= numGenUvs)
-				continue;
-			
-			float x = genUvs[genFaces[i].sides[j].uv].x, y = genUvs[genFaces[i].sides[j].uv].y, 
-				lastX = genUvs[genFaces[i].sides[j - 1].uv].x, lastY = genUvs[genFaces[i].sides[j - 1].uv].y;
-
-			if (atan2(y - uv.y, x - uv.x) < atan2(lastY - uv.y, lastX - uv.x))
-				avgDirection++;
-			else
-				avgDirection--;
-		}
-
-		if (avgDirection > 0) {
-			// Flip the face!
-			faces[i].SetFlip(true);
-
-			uint32 verts = faces[i].word1;
-			uint32 colours = faces[i].word2;
-			if (faces[i].verts[0] != faces[i].verts[1]) {
-				faces[i].verts[0] = verts >> 24 & 0xFF;
-				faces[i].verts[1] = verts >> 16 & 0xFF;
-				faces[i].verts[2] = verts >> 8 & 0xFF;
-				faces[i].verts[3] = verts & 0xFF;
-				faces[i].colours[0] = colours >> 24 & 0xFF;
-				faces[i].colours[1] = colours >> 16 & 0xFF;
-				faces[i].colours[2] = colours >> 8 & 0xFF;
-				faces[i].colours[3] = colours & 0xFF;
-			} else {
-				faces[i].verts[0] = verts >> 24 & 0xFF;
-				faces[i].verts[1] = verts >> 24 & 0xFF;
-				faces[i].verts[2] = verts >> 16 & 0xFF;
-				faces[i].verts[3] = verts >> 8 & 0xFF;
-				faces[i].colours[0] = colours >> 24 & 0xFF;
-				faces[i].colours[1] = colours >> 24 & 0xFF;
-				faces[i].colours[2] = colours >> 16 & 0xFF;
-				faces[i].colours[3] = colours >> 8 & 0xFF;
-			}
-		}
-
-		// Use that point to determine the texture
-		int xTex = (int) (uv.x * textureWidth);
-		int yTex = (int) (uv.y * textureHeight);
-		int texId = yTex * TEXTURESPERROW + xTex;
-
-		if (texId >= 0 && texId < numTexs)
-			faces[i].SetTexture(texId);
-		else
-			faces[i].SetTexture(1);
-	}
-
-	// FIX GAPS
-	int curFaceId = sector->GetFlistId();
-	for (int f1 = 0; f1 < sector->numHpFaces; f1++) {
-		for (int s1 = 0; s1 < 4; s1++) {
-			int vert1 = faces[f1].verts[s1], vert2 = faces[f1].verts[(s1 + 1) & 3];
-
-			for (int f2 = 0; f2 < sector->numHpFaces; f2++) {
-				if (f2 == f1)
-					continue;
-				for (int s2 = 0; s2 < 4; s2++) {
-					if ((faces[f2].verts[s2] == vert1 && faces[f2].verts[(s2 + 1) & 3] == vert2) || 
-						(faces[f2].verts[s2] == vert2 && faces[f2].verts[(s2 + 1) & 3] == vert1)) {
-						faces[f1].SetEdge((2 - s1) & 3, curFaceId + f2);
-						goto NextSide;
-					}
-				}
-			}
-
-		NextSide:
-			continue;
-		}
-	}
-
-	curFaceId += sector->numHpFaces; // delete this line?
-
-	// UPDATE COLLISION TRIANGLES ********
-	CollTri* triangles = spyroCollision.triangles;
-	uint16* triangleTypes = spyroCollision.surfaceType;
-	int numTriangles = spyroCollision.numTriangles;
-
-	// Our sector colltri cache
-	CollSectorCache* sectorCache = &collisionCache.sectorCaches[sectorId];
-	CollTriCache* cache = sectorCache->triangles;
-
-	// If there are new faces added, steal some triangles from the unlinked cache and link them (assume the user wants them to be collidable)
-	// TODO: Face IDs could be reordered at any time. Assuming they'll stay the same is bad... this OK?
-	for (int face = oldNumFaces; face < numFaces; face++) {
-		if (!collisionCache.numUnlinkedTriangles || sectorCache->numTriangles >= sizeof (sectorCache->triangles)/sizeof (sectorCache->triangles[0]))
-			break; // no triangles left to steal!
-		
-		// For every triangle of this face (1 if the face is a triangle, 2 if it's a quad)
-		for (int tri = 0, numTris = (faces[face].verts[0] == faces[face].verts[1] ? 1 : 2); tri < numTris; tri++) {
-			if (!collisionCache.numUnlinkedTriangles || sectorCache->numTriangles >= sizeof (sectorCache->triangles)/sizeof (sectorCache->triangles[0]))
-				break; // no triangles left to steal!
-			
-
-			// Take the least valuable triangle in the miscellaneous triangle list
-			CollTriCache* stealMe = &collisionCache.unlinkedCaches[collisionCache.numUnlinkedTriangles];
-			CollTriCache* linkedTri = &cache[sectorCache->numTriangles];
-
-			// Attach it to this face
-			*linkedTri = *stealMe;
-
-			if ((faces[face].GetFlip())) {
-				if (tri == 0) {
-					linkedTri->vert1Index = 1;
-					linkedTri->vert2Index = 2;
-					linkedTri->vert3Index = 3;
-				} else if (tri == 1) {
-					linkedTri->vert1Index = 3;
-					linkedTri->vert2Index = 0;
-					linkedTri->vert3Index = 1;
-				}
-			} else {
-				if (tri == 0) {
-					linkedTri->vert1Index = 3;
-					linkedTri->vert2Index = 2;
-					linkedTri->vert3Index = 1;
-				} else if (tri == 1) {
-					linkedTri->vert1Index = 1;
-					linkedTri->vert2Index = 0;
-					linkedTri->vert3Index = 3;
-				}
-			}
-
-			linkedTri->faceIndex = face;
-			linkedTri->triangleType = 0;
-
-			if (triangleTypes) {
-				triangleTypes[linkedTri->triangleIndex] = 0;
-				linkedTri->triangleType = 0;
-			}
-
-			// Decrement the unlinked triangle count after our thievery
-			collisionCache.numUnlinkedTriangles--;
-			sectorCache->numTriangles++;
-
-		}
-	}
-
-	// Use the cache to move collision triangles
-	for (CollTriCache* cacheTri = cache, *e = &cache[sectorCache->numTriangles]; cacheTri < e; cacheTri++) {
-		SceneFace* face = &sector->GetHpFaces()[cacheTri->faceIndex];
-		const IntVector &vert1 = absoluteVerts[face->verts[cacheTri->vert1Index]], &vert2 = absoluteVerts[face->verts[cacheTri->vert2Index]], 
-						&vert3 = absoluteVerts[face->verts[cacheTri->vert3Index]];
-
-		triangles[cacheTri->triangleIndex].SetPoints(0, vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
-	}
-}
-
-void BuildGenSector(int sectorId) {
-	if (sectorId >= sceneData->numSectors || sectorId < 0 || !genSectors[sectorId])
-		return;
-
-	SceneSectorHeader* sector = sceneData->sectors[sectorId];
-	GenMesh* genSector = genSectors[sectorId]->GetMesh();
-
-	if (!genSector)
-		return;
-
-	int numVerts = sector->numHpVertices;
-	int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
-	int hpColourStart = hpVertexStart + numVerts;
-	int hpFaceStart = hpColourStart + sector->numHpColours * 2;
-	int x = sector->xyPos >> 16, y = (sector->xyPos & 0xFFFF), z = ((sector->zPos >> 14) & 0xFFFF) >> 2;
-	float fX = (float) x * WORLDSCALE, fY = (float) y * WORLDSCALE, fZ = (float) z * WORLDSCALE;
-	bool flatSector = (sector->centreRadiusAndFlags >> 12 & 1);
-	SceneFace* faces = (SceneFace*) &sector->data32[hpFaceStart];
-
-	// Copy verts
-	genSector->SetNum(GENMET_VERT, sector->numHpVertices);
-
-	GenMeshVert* genVerts = genSector->LockVerts();
-	for (int i = 0; i < sector->numHpVertices; i++) {
-		uint32 curVertex = sector->data32[hpVertexStart + i];
-		int curX = (curVertex >> 19 & 0x1FFC) >> 2, curY = (curVertex >> 8 & 0x1FFC) >> 2, curZ = (curVertex << 3 & 0x1FFC) >> 2;
-
-		if (game == SPYRO1) {
-			curX = (curVertex >> 19 & 0x1FFC) >> 2; curY = (curVertex >> 8 & 0x1FFC) >> 2; curZ = (curVertex << 3 & 0x1FFC) >> 3;
-		}
-
-		if (flatSector)
-			curZ >>= 3;
-
-		genVerts[i].pos.x = (float) curX * WORLDSCALE + fX;
-		genVerts[i].pos.y = (float) curY * WORLDSCALE + fY;
-		genVerts[i].pos.z = (float) curZ * WORLDSCALE + fZ;
-	}
-
-	genSector->UnlockVerts(genVerts);
-
-	// Copy colours
-	genSector->SetNum(GENMET_COLOUR, sector->numHpColours);
-	
-	genu32* genColours = genSector->LockColours();
-	for (int i = 0; i < sector->numHpColours; i++)
-		genColours[i] = sector->data32[hpColourStart + i] | 0xFF000000;
-	genSector->UnlockColours(genColours);
-
-	// Count UVs
-	int32 uvByTexture[300];
-	const int textureHeight = (*numTextures + TEXTURESPERROW - 1) / TEXTURESPERROW * 64;
-	int numUsedTextures = 0;
-
-	for (int i = 0; i < *numTextures; i++)
-		uvByTexture[i] = -1;
-	for (int i = 0; i < sector->numHpFaces; i++) {
-		uint32 texId = faces[i].GetTexture();
-
-		if (uvByTexture[texId] == -1) {
-			uvByTexture[texId] = numUsedTextures * 4;
-			numUsedTextures++;
-		}
-	}
-
-	// Generate UVs
-	genSector->SetNum(GENMET_UV, numUsedTextures * 4);
-
-	GenVec2* genUvs = genSector->LockUvs();
-
-	for (int i = 0; i < *numTextures; i++) {
-		if (uvByTexture[i] != -1) {
-			uint32 texX1 = (i * 64) % TEXTUREROWLENGTH, texX2 = texX1 + 64, 
-				   texY1 = (i / TEXTURESPERROW) * 64, texY2 = texY1 + 64;
-
-			int curUv = uvByTexture[i];
-			genUvs[curUv + 0].x = (float) texX1 / (float) TEXTUREROWLENGTH;
-			genUvs[curUv + 0].y = (float) texY1 / (float) textureHeight;
-			genUvs[curUv + 1].x = (float) texX2 / (float) TEXTUREROWLENGTH;
-			genUvs[curUv + 1].y = (float) texY1 / (float) textureHeight;
-			genUvs[curUv + 2].x = (float) texX2 / (float) TEXTUREROWLENGTH;
-			genUvs[curUv + 2].y = (float) texY2 / (float) textureHeight;
-			genUvs[curUv + 3].x = (float) texX1 / (float) TEXTUREROWLENGTH;
-			genUvs[curUv + 3].y = (float) texY2 / (float) textureHeight;
-		}
-	}
-	genSector->UnlockUvs(genUvs);
-
-	// Copy faces
-	genSector->SetNum(GENMET_FACE, sector->numHpFaces);
-	GenMeshFace* genFaces = genSector->LockFaces();
-
-	for (int i = 0; i < sector->numHpFaces; i++) {
-		uint32 texId = faces[i].GetTexture();
-		int add = 0;
-
-		if (!faces[i].GetFlip()) {
-			genFaces[i].sides[0].vert = faces[i].verts[3];
-			genFaces[i].sides[1].vert = faces[i].verts[2];
-			genFaces[i].sides[2].vert = faces[i].verts[1];
-			genFaces[i].sides[0].colour = faces[i].colours[3];
-			genFaces[i].sides[1].colour = faces[i].colours[2];
-			genFaces[i].sides[2].colour = faces[i].colours[1];
-			genFaces[i].sides[0].uv = uvByTexture[texId];
-			genFaces[i].sides[1].uv = uvByTexture[texId] + 1;
-			genFaces[i].sides[2].uv = uvByTexture[texId] + 2;
-
-			if (faces[i].verts[1] != faces[i].verts[0]) {
-				genFaces[i].sides[3].vert = faces[i].verts[0];
-				genFaces[i].sides[3].colour = faces[i].colours[0];
-				genFaces[i].sides[3].uv = uvByTexture[texId] + 3;
-				add = 1;
-			}
-
-			genFaces[i].numSides = 3 + add;
-		} else {
-			if (faces[i].verts[1] != faces[i].verts[0]) {
-				genFaces[i].sides[0].vert = faces[i].verts[0];
-				genFaces[i].sides[0].colour = faces[i].colours[0];
-				genFaces[i].sides[0].uv = uvByTexture[texId] + 3;
-				add = 1;
-			}
-
-			genFaces[i].sides[0+add].vert = faces[i].verts[1];
-			genFaces[i].sides[1+add].vert = faces[i].verts[2];
-			genFaces[i].sides[2+add].vert = faces[i].verts[3];
-			genFaces[i].sides[0+add].colour = faces[i].colours[1];
-			genFaces[i].sides[1+add].colour = faces[i].colours[2];
-			genFaces[i].sides[2+add].colour = faces[i].colours[3];
-			genFaces[i].sides[0+add].uv = uvByTexture[texId] + 2;
-			genFaces[i].sides[1+add].uv = uvByTexture[texId] + 1;
-			genFaces[i].sides[2+add].uv = uvByTexture[texId];
-			genFaces[i].numSides = 3 + add;
-		}
-	}
-	
-	genSector->UnlockFaces(genFaces);
 }
 
 void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex) {
@@ -1394,109 +860,8 @@ void BuildSpyroMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameInde
 	genMoby->UnlockColours(genColours);
 }
 
-void MakeCrater(int craterX, int craterY, int craterZ) {
-	if (!sceneData)
-		return;
-	
-	const float range = 6.0f;
-	const float depth = 0.7f;
-	const float rimHeight = 1.1f;
-	const float rimWidth = 3.0f;
-	const float crushFactor = 1.0f, crushFactorOuter = 0.5f;
-	float fX = (float) (craterX >> 4) * WORLDSCALE, fY = (float) (craterY >> 4) * WORLDSCALE, fZ = (float) (craterZ >> 4) * WORLDSCALE;
-	for (int i = 0; i < sceneData->numSectors; i++) {
-		BuildGenSector(i);
-
-		GenMesh* genSector = NULL;
-		if (genSectors[i]) {
-			genSector = genSectors[i]->GetMesh();
-			if (!genSector)
-				continue;
-		}
-
-		GenMeshVert* genVerts = genSector->LockVerts();
-		bool changeMade = false;
-		for (int j = 0, e = genSector->GetNumVerts(); j < e; j++) {
-			float diffX = genVerts[j].pos.x - fX, diffY = genVerts[j].pos.y - fY, diffZ = genVerts[j].pos.z - fZ;
-			float dist = sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-
-			if (dist <= range) {
-				genVerts[j].pos.z = genVerts[j].pos.z + (fZ - genVerts[j].pos.z) * ((crushFactor * (1.0f-dist/range)) + (crushFactorOuter * (dist/range)));
-
-				if (dist <= range - rimWidth)
-					genVerts[j].pos.z -= cos(dist / (range - rimWidth) * 1.67f) * depth;
-				else
-					genVerts[j].pos.z += sin((dist - range - rimWidth) / rimWidth * 3.14f) * rimHeight;
-				changeMade = true;
-			}
-		}
-
-		if (changeMade) {
-			GenMeshFace* genFaces = genSector->LockFaces();
-			genu32* genColours = genSector->LockColours();
-			genu32 numVerts = genSector->GetNumVerts(), numColours = genSector->GetNumColours();
-
-			// Update colours then call UpdateSector
-			float colourDist[256];
-			memset(colourDist, 0, sizeof (colourDist));
-
-			for (int j = 0, e = genSector->GetNumFaces(); j < e; j++) {
-				for (int k = 0; k < genFaces[j].numSides; k++) {
-					if (genFaces[j].sides[k].vert >= numVerts || genFaces[j].sides[k].colour >= numColours)
-						continue;
-
-					GenVec3* vert = &genVerts[genFaces[j].sides[k].vert].pos;
-					float dist = sqrt((vert->x - fX) * (vert->x - fX) + (vert->y - fY) * (vert->y - fY));
-
-					if (dist <= range && dist > colourDist[genFaces[j].sides[k].colour])
-						colourDist[genFaces[j].sides[k].colour] = dist;
-				}
-			}
-
-			for (int j = 0, e = genSector->GetNumColours(); j < e; j++) {
-				if (colourDist[j] > 0.0f && colourDist[j] <= range) {
-					int factor = 20 + (int) (colourDist[j] / range * 80.0f);
-					int oldR = GETR32(genColours[j]), oldG = GETG32(genColours[j]), oldB = GETB32(genColours[j]);
-
-					genColours[j] = MAKECOLOR32(oldR * factor / 100, oldG * factor / 100, oldB * factor / 100) | 0xFF000000;
-				}
-			}
-			
-			genSector->UnlockColours(genColours);
-			genSector->UnlockFaces(genFaces);
-			BuildSpyroSector(i);
-		}
-		genSector->UnlockVerts(genVerts);
-	}
-
-	RebuildCollisionTree();
-
-	// Move nearby objects
-	if (mobys) {
-		for (int i = 0; mobys[i].state != -1; i++) {
-			if (mobys[i].state < 0)
-				continue;
-
-			float x = (float) (mobys[i].x >> 4) * WORLDSCALE, y = (float) (mobys[i].y >> 4) * WORLDSCALE, z = (float) (mobys[i].z >> 4) * WORLDSCALE;
-			float diffX = x - fX, diffY = y - fY, diffZ = z - fZ;
-			float dist = sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-
-			if (dist <= range) {
-				z = z + (fZ - z) * ((crushFactor * (1.0f-dist/range)) + (crushFactorOuter * (dist/range)));
-
-				if (dist <= range - rimWidth)
-					z -= cos(dist / (range - rimWidth) * 1.67f) * depth;
-				else
-					z += sin((dist - range - rimWidth) / rimWidth * 3.14f) * rimHeight;
-
-				mobys[i].z = (int) (z / WORLDSCALE * 16.0f);
-			}
-		}
-	}
-}
-
 void MakeIceWall(int _x, int _y, int _z) {
-	if (!sceneData)
+	if (!scene.spyroScene)
 		return;
 
 	int sX = _x >> 4, sY = _y >> 4, sZ = _z >> 4;
@@ -1505,8 +870,8 @@ void MakeIceWall(int _x, int _y, int _z) {
 	uint32 closestId = 0;
 	uint64 closestDist = 0xFFFFFFFFFFFFFFFFll;
 
-	for (int i = 0; i < sceneData->numSectors; i++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int sectorX = sector->xyPos >> 16, sectorY = (sector->xyPos & 0xFFFF), sectorZ = ((sector->zPos >> 14) & 0xFFFF) >> 2;
 		uint64 dist = (sectorX - sX) * (sectorX - sX) + (sectorY - sY) * (sectorY - sY) + (sectorZ - sZ) * (sectorZ - sZ);
 
@@ -1517,7 +882,7 @@ void MakeIceWall(int _x, int _y, int _z) {
 	}
 
 	// Ice wall, coming right up
-	SceneSectorHeader* sector = sceneData->sectors[closestId];
+	SceneSectorHeader* sector = scene.spyroScene->sectors[closestId];
 	GenMesh* genSector = NULL;
 
 	if (genSectors[closestId]) {
@@ -1530,7 +895,7 @@ void MakeIceWall(int _x, int _y, int _z) {
 	int startVert = genSector->GetNumVerts(), startFace = genSector->GetNumFaces();
 	
 	if (startVert + 4 < 256 && startFace + 1 < 256) {
-		BuildGenSector(closestId);
+		scene.ConvertSpyroToGen(closestId);
 		
 		genSector->SetNum(GENMET_FACE, startFace + 1);
 		genSector->SetNum(GENMET_VERT, startVert + 4);
@@ -1550,7 +915,7 @@ void MakeIceWall(int _x, int _y, int _z) {
 		
 		genFaces[startFace].numSides = 4;
 
-		BuildSpyroSector(closestId);
+		scene.ConvertGenToSpyro(closestId);
 
 		genSector->UnlockVerts(genVerts);
 		genSector->UnlockFaces(genFaces);
@@ -1571,136 +936,18 @@ void MoveSceneData(SceneSectorHeader* sector, int start, int size, int moveOffse
 	}
 }
 
-SceneSectorHeader* ResizeSector(int sectorId, const SceneSectorHeader* newHead) {
-	if (!sceneData)
-		return NULL;
-	if (sectorId >= sceneData->numSectors)
-		return NULL;
-
-	// Resizing the sector means finding some place to put it in memory
-	// if the sector is smaller than it was before, this isn't a problem, we don't need to move it at all
-	// it's a different story however if it's bigger, in which case it needs to be moved to what SpyroEdit believes is a free memory space
-	SceneSectorHeader* head = sceneData->sectors[sectorId];
-	int curSize = head->GetSize();
-	int newSize = newHead->GetSize();
-	uint32 newSpot = sceneData->sectors[sectorId].address & 0x003FFFFF;
-	uint8 backupSectorData[16384];
-	SceneSectorHeader* backupSector = (SceneSectorHeader*) backupSectorData;
-
-	if (newSize > curSize) {
-		// First count the amount of space left in the main scene memory. If the user has deleted level segments we can defragment and use it.
-		int usedSize = (sceneData->numSectors * 4) + 0x0C;
-		for (int i = 0; i < sceneData->numSectors; i++) {
-			usedSize += sceneData->sectors[i]->GetSize();
-		}
-		usedSize -= head->GetSize();
-
-		if (sceneData->size >= usedSize + newSize) {
-			// Defragment sectors while creating extra room for this one
-			static uint8 backupSectors[0x00050000];
-			static uint32 backupSectorOffsets[512];
-			uint32 curOffset = 0;
-
-			for (int i = 0; i < sceneData->numSectors; i++) {
-				int sectorSize = sceneData->sectors[i]->GetSize();
-				memcpy(&backupSectors[curOffset], sceneData->sectors[i], sectorSize);
-
-				backupSectorOffsets[i] = curOffset;
-
-				if (i != sectorId)
-					curOffset += sectorSize;
-				else
-					curOffset += newSize;
-			}
-			
-			uint32 baseAddress = (uint8*)&sceneData->sectors[sceneData->numSectors] - umem8;
-			memcpy(&umem8[baseAddress], backupSectors, curOffset);
-
-			for (int i = 0; i < sceneData->numSectors; i++)
-				sceneData->sectors[i].address = (baseAddress + backupSectorOffsets[i]) | 0x80000000;
-
-			newSpot = sceneData->sectors[sectorId].address & 0x003FFFFF;
-			head = sceneData->sectors[sectorId];
-		} else {
-			newSpot = FindFreeMemory(newSize); // Move the sector to a bigger memory area if possible
-			
-			if (!newSpot)
-				return NULL; // no memory, cannot resize the sector to this size
-
-			// Copy the old sector to the new place
-			memcpy(&umem8[newSpot], head, head->GetSize());
-			
-			// Zero out the old sector. This enables us to reuse the memory if needed
-			memset(head, 0, curSize);
-
-			// Update pointer to sector
-			sceneData->sectors[sectorId].address = newSpot | 0x80000000;
-
-			// Reassign header pointer
-			head = (SceneSectorHeader*) &umem8[newSpot];
-		}
-	}
-	
-	// Backup the old header and data for reshuffle
-	memcpy(backupSector, &head, head->GetSize());
-
-	// Copy the new header
-	memcpy((SceneSectorHeader*) head, newHead, 7 * 4);
-	head->zTerminator = 0xFFFFFFFF;
-
-	// Shuffle verts, faces etc
-	uint32* basicUintShuffle[] = {backupSector->GetLpVertices(), head->GetLpVertices(), backupSector->GetLpColours(), head->GetLpColours(), 
-								  backupSector->GetHpVertices(), head->GetHpVertices(), backupSector->GetHpColours(), head->GetHpColours()};
-	int shuffleCount[] = {backupSector->numLpVertices, head->numLpVertices, backupSector->numLpColours, head->numLpColours, 
-						  backupSector->numHpVertices, head->numHpVertices, backupSector->numHpColours, head->numHpColours};
-
-	for (int j = 0; j < sizeof (basicUintShuffle) / sizeof (basicUintShuffle[0]) / 2; j++) {
-		uint32* oldUints = basicUintShuffle[j * 2], *newUints = basicUintShuffle[j * 2 + 1];
-		int oldCount = shuffleCount[j * 2], newCount = shuffleCount[j * 2 + 1];
-		for (int i = 0; i < newCount; i++) {
-			if (i < oldCount)
-				newUints[i] = oldUints[i];
-			else
-				newUints[i] = 0;
-		}
-	}
-
-	uint32* oldLpFaces = backupSector->GetLpFaces(), *newLpFaces = head->GetLpFaces();
-	for (int i = 0; i < head->numLpFaces * 2; i++) {
-		if (i < backupSector->numLpFaces * 2)
-			newLpFaces[i] = oldLpFaces[i];
-		else
-			newLpFaces[i] = 0;
-	}
-
-	SceneFace* oldHpFaces = backupSector->GetHpFaces(), *newHpFaces = head->GetHpFaces();
-	for (int i = 0; i < head->numHpFaces; i++) {
-		if (i < backupSector->numHpFaces) {
-			newHpFaces[i] = oldHpFaces[i];
-		} else {
-			newHpFaces[i].word1 = 0;
-			newHpFaces[i].word2 = 0;
-			newHpFaces[i].word3 = 0;
-			newHpFaces[i].word4 = 0;
-		}
-	}
-
-	if (newSize < curSize)
-		// Zero out the free memory beyond this sector
-		memset((void*) ((uintptr) head + newSize), 0, curSize - newSize);
-
-	// Done!
-	return head;
-}
-
 void SetupCollisionLinks() {
+	if (!scene.spyroScene) {
+		return;
+	}
+
 	// Reset collision cache
-	for (int i = 0; i < sceneData->numSectors; i++)
+	for (int i = 0; i < scene.spyroScene->numSectors; i++)
 		collisionCache.sectorCaches[i].numTriangles = 0;
 	collisionCache.numUnlinkedTriangles = 0;
 
 	// NEW: Rebuild collision cache
-	if ((spyroCollision.IsValid() /* || s1CollData uncommented until surface types clarified */) && sceneData && sceneData->numSectors < 0xFF) {
+	if ((spyroCollision.IsValid() /* || s1CollData uncommented until surface types clarified */) && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
 		CollTri* triangles = spyroCollision.triangles;
 		int numTriangles = spyroCollision.numTriangles;
 		uint16* triangleTypes = spyroCollision.surfaceType;
@@ -1710,11 +957,11 @@ void SetupCollisionLinks() {
 
 		// This operation is slow, so we'll deliberately compartmentalise the collision triangles into smaller--wait. Doesn't Spyro already do this?
 		// Todo: Abuse this Spyro feature
-		for (int s = 0; s < sceneData->numSectors; s++) {
-			SceneSectorHeader* sector = sceneData->sectors[s];
+		for (int s = 0; s < scene.spyroScene->numSectors; s++) {
+			SceneSectorHeader* sector = scene.spyroScene->sectors[s];
 			CollSectorCache* collSector = &collisionCache.sectorCaches[s];
-			SceneFace* faces = sceneData->sectors[s]->GetHpFaces();
-			uint32* verts = sceneData->sectors[s]->GetHpVertices();
+			SceneFace* faces = scene.spyroScene->sectors[s]->GetHpFaces();
+			uint32* verts = scene.spyroScene->sectors[s]->GetHpVertices();
 			int sectorX = sector->xyPos >> 16, sectorY = (sector->xyPos & 0xFFFF), sectorZ = ((sector->zPos >> 14) & 0xFFFF) >> 2;
 			bool flatSector = (sector->centreRadiusAndFlags >> 12 & 1);
 			IntVector absoluteVerts[256];
@@ -1844,7 +1091,7 @@ void SetupCollisionLinks() {
 }
 
 void RebuildCollisionTriangles() {
-	if (!spyroCollision.IsValid() || !sceneData)
+	if (!spyroCollision.IsValid() || !scene.spyroScene)
 		return;
 
 	CollTri* triangles = spyroCollision.triangles;
@@ -1854,9 +1101,9 @@ void RebuildCollisionTriangles() {
 	// Perform massive triangle build
 	int numTriangles = 0;
 
-	for (int s = 0; s < sceneData->numSectors; s++) {
+	for (int s = 0; s < scene.spyroScene->numSectors; s++) {
 		GenMesh* genSector = NULL;
-		BuildGenSector(s);
+		scene.ConvertSpyroToGen(s);
 
 		if (genSectors[s])
 			genSector = genSectors[s]->GetMesh();

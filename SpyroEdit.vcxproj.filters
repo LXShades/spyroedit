@@ -49,6 +49,15 @@
     <ClInclude Include="Source\Window.h">
       <Filter>Main</Filter>
     </ClInclude>
+    <ClInclude Include="Source\SpyroScene.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroGenesis.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroLiveGen.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="DEF">
@@ -99,6 +108,9 @@
     </ClCompile>
     <ClCompile Include="Source\Window.cpp">
       <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroScene.cpp">
+      <Filter>Spyro</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

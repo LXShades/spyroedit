@@ -34,6 +34,8 @@ extern HWND staticTransferStatus;
 extern HWND static_genCollisionStatus;
 extern HWND static_genSceneStatus;
 
+extern bool isGenesisPageValid;
+
 void Startup();
 
 void SetControlString(HWND control, const char* string);
@@ -46,3 +48,4 @@ void CreateStatusPage();
 void CreateGenesisPage();
 
 void UpdateStatusPage();
+void UpdateGenesisPage();

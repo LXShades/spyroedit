@@ -7,6 +7,7 @@
 #include "Online.h"
 #include "SpyroTextures.h"
 #include "Powers.h"
+#include "SpyroScene.h"
 
 const char* spyro1LevelNames[] = {
 	"Artisans", "Stone Hill", "Dark Hollow", "Town Square", "Toasty", "Sunny Flight", 
@@ -33,8 +34,6 @@ Moby* mobys;
 int32* numMobys;
 
 SpyroPointer<ModelHeader>* mobyModels;
-
-SpyroScene* sceneData;
 
 CollisionCache collisionCache;
 
@@ -183,7 +182,8 @@ void SpyroOnLevelEntry() {
 	LiveGenOnLevelEntry();
 
 	// Backup level colours (no more colour loss)
-	if (sceneData) {
+	if (scene.spyroScene) {
+		SpyroSceneHeader* sceneData = scene.spyroScene;
 		for (int i = 0; i < sceneData->numSectors; i++) {
 			uint32* colours = sceneData->sectors[i]->GetHpColours(), *lpColours = sceneData->sectors[i]->GetLpColours();
 			uint32 numColours = sceneData->sectors[i]->numHpColours, numLpColours = sceneData->sectors[i]->numLpColours;
@@ -194,6 +194,9 @@ void SpyroOnLevelEntry() {
 				backupColoursLp[i][j] = lpColours[j];
 		}
 	}
+
+	// Update scene manager
+	scene.OnLevelEntry();
 
 	// Auto-load level textures
 	// Update the texture cache
@@ -235,7 +238,7 @@ void UpdateSpyroPointers() {
 	level = NULL; spyro = NULL;
 	skyData = NULL; skyNumSectors = NULL; skyBackColour = NULL;
 	levelNames = NULL; numLevelNames = 0;
-	sceneData = NULL; 
+	scene.SetSpyroScene(0);
 	sceneOcclusion = NULL; skyOcclusion = NULL;
 	spyroDrawFuncAddress = 0;
 	//spyroModelPointer = 0;
@@ -319,14 +322,14 @@ void UpdateSpyroPointers() {
 				}
 			}
 
-			if (!sceneData) {
+			if (!scene.spyroScene) {
 				// Scene data and collision data(Spyro 2 and Spyro 3)
 				if (uintmem[i+0] >> 16 == 0x3C06 && uintmem[i+1] >> 16 == 0x24C6 && uintmem[i+2] == 0x8CC60028 && uintmem[i+3] == 0x302300FF && uintmem[i+4] == 0x00011202) {
 					uint32 addr = BUILDADDR(uintmem[i], uintmem[i + 1]);
 					uint32 collAddr = ((uintmem[i] << 16) + (int16) (uintmem[i+1] & 0xFFFF) + (int16) (uintmem[i+2] & 0xFFFF)) & 0x003FFFFF;
 
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						sceneData = (SpyroScene*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
+						scene.SetSpyroScene(uintmem[addr/4] - 0x0C & 0x003FFFFF);
 						spyroCollision.SetAddress(&bytemem[uintmem[collAddr/4] & 0x003FFFFF], SPYRO2);
 						sceneOcclusion = (uint8*)&bytemem[uintmem[addr/4+2] & 0x003FFFFF];
 						skyOcclusion = (uint8*)&bytemem[uintmem[addr/4+3] & 0x003FFFFF];
@@ -344,7 +347,7 @@ void UpdateSpyroPointers() {
 					uint32 addr = BUILDADDR(uintmem[i + 5], uintmem[i + 6]);
 
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						sceneData = (SpyroScene*) &bytemem[uintmem[addr/4] - 0x0C & 0x003FFFFF];
+						scene.SetSpyroScene(uintmem[addr/4] - 0x0C & 0x003FFFFF);
 						spyroPois[POI_SCENE] = i;
 					}
 
@@ -937,9 +940,8 @@ void LoadSky(const char* useFilename) {
 	CloseHandle(skyIn);
 }
 
-void SaveColours()
-{
-	if (!sceneData)
+void SaveColours() {
+	if (!scene.spyroScene)
 		return;
 
 	char filename[MAX_PATH];
@@ -952,12 +954,12 @@ void SaveColours()
 	if (clrOut == INVALID_HANDLE_VALUE)
 		return;
 
-	WriteFile(clrOut, &sceneData->numSectors, 4, &nil, NULL);
+	WriteFile(clrOut, &scene.spyroScene->numSectors, 4, &nil, NULL);
 
 	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < sceneData->numSectors; i ++)
+	for (int i = 0; i < scene.spyroScene->numSectors; i ++)
 	{
-		SceneSectorHeader* sector = sceneData->sectors[i];
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int lpColourStart = sector->numLpVertices;
 		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
 
@@ -975,7 +977,7 @@ void SaveColours()
 }
 
 void LoadColours() {
-	if (!sceneData)
+	if (!scene.spyroScene)
 		return;
 
 	char filename[MAX_PATH];
@@ -991,12 +993,12 @@ void LoadColours() {
 	uint32 numSectors = 0;
 	ReadFile(clrIn, &numSectors, 4, &nil, NULL);
 
-	if (numSectors != sceneData->numSectors)
+	if (numSectors != scene.spyroScene->numSectors)
 		return;
 
 	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < sceneData->numSectors; i ++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i ++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int lpColourStart = sector->numLpVertices;
 		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
 		int numLpColours = 0, numHpColours = 0;
@@ -1018,7 +1020,7 @@ void LoadColours() {
 }
 
 void SetLevelColours(LevelColours* clrsIn) {
-	if (!sceneData)
+	if (!scene.spyroScene)
 		return;
 
 	GetAvgTexColours();
@@ -1028,8 +1030,8 @@ void SetLevelColours(LevelColours* clrsIn) {
 	int extraLightR = clrsIn->lightR, extraLightG = clrsIn->lightG, extraLightB = clrsIn->lightB;
 
 	// Refresh sector lighting
-	for (int i = 0; i < sceneData->numSectors; i++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int lpColourStart = sector->numLpVertices;
 		int lpFaceStart = sector->numLpVertices + sector->numLpColours;
 		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
@@ -1171,7 +1173,7 @@ void SetLevelColours(LevelColours* clrsIn) {
 }
 
 void GetLevelColours(LevelColours* clrsOut) {
-	if (!sceneData)
+	if (!scene.spyroScene)
 		return;
 
 	GetAvgTexColours();
@@ -1180,8 +1182,8 @@ void GetLevelColours(LevelColours* clrsOut) {
 	
 	int mainAvgFogR = 0, mainAvgFogG = 0, mainAvgFogB = 0;
 	int mainAvgFogDiv = 0;
-	for (int i = 0; i < sceneData->numSectors; i ++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i ++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
 		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
 		int hpFaceStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices + sector->numHpColours * 2;
@@ -1273,7 +1275,7 @@ void TweakSky(int tweakR, int tweakG, int tweakB) {
 }
 
 uint32 GetAverageLightColour() {
-	if (!sceneData)
+	if (!scene.spyroScene)
 		return 0;
 
 	GetAvgTexColours();
@@ -1282,8 +1284,8 @@ uint32 GetAverageLightColour() {
 	
 	int mainAvgClrR = 0, mainAvgClrG = 0, mainAvgClrB = 0;
 	int mainAvgClrDiv = 0;
-	for (int i = 0; i < sceneData->numSectors; i ++) {
-		SceneSectorHeader* sector = sceneData->sectors[i];
+	for (int i = 0; i < scene.spyroScene->numSectors; i ++) {
+		SceneSectorHeader* sector = scene.spyroScene->sectors[i];
 		int hpVertexStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2;
 		int hpColourStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices;
 		int hpFaceStart = sector->numLpVertices + sector->numLpColours + sector->numLpFaces * 2 + sector->numHpVertices + sector->numHpColours * 2;
