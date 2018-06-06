@@ -69,7 +69,7 @@ HWND edit_fogR, edit_fogG, edit_fogB, edit_lightR, edit_lightG, edit_lightB, edi
 // Genesis page
 HWND edit_genIp, button_genConnect;
 HWND button_genSendScene, button_genSendCollision, button_genSendSpyro, button_genSendMobyModel, button_genSendAllObjects;
-HWND button_genRebuildColltree, button_genRebuildColltris;
+HWND button_genRebuildColltree, button_genRebuildColltris, button_genResetScene;
 HWND checkbox_genDisableSceneOccl, checkbox_genDisableSkyOccl;
 HWND static_genSceneStatus, static_genCollisionStatus;
 HWND edit_coordsInX, edit_coordsInY, edit_coordsInZ, edit_coordsInFlag;
@@ -101,7 +101,7 @@ HWND button_vramViewer;
 
 void StartupNetwork();
 void SendLiveGenScene(); void SendLiveGenCollision(); void SendLiveGenSpyro(); void SendLiveGenMobyModel(int model, int mobyId = -1); void SendLiveGenAllMobys();
-bool ConnectLiveGen(); void RebuildCollisionTree(); void RebuildCollisionTriangles();
+bool ConnectLiveGen(); void RebuildCollisionTree(); void RebuildCollisionTriangles(); void ResetLiveGenScene();
 
 void UpdateTextureWindow();
 
@@ -364,12 +364,13 @@ void CreateGenesisPage() {
 
 	AddPageLine();
 	button_genSendScene = AddPageControl("BUTTON", "Send Scene",  BS_PUSHBUTTON, 7, 80);
-	button_genSendCollision = AddPageControl("BUTTON", "Send Collision",  BS_PUSHBUTTON, 95, 87);
+	button_genResetScene = AddPageControl("BUTTON", "Reset Scene",  BS_PUSHBUTTON, 95, 80);
 	AddPageLine();
 	button_genSendSpyro = AddPageControl("BUTTON", "Send Spyro",  BS_PUSHBUTTON, 7, 80);
-	button_genSendMobyModel = AddPageControl("BUTTON", "Send Object",  BS_PUSHBUTTON, 95, 80);
+	button_genSendCollision = AddPageControl("BUTTON", "Send Collision",  BS_PUSHBUTTON, 95, 87);
 	AddPageLine();
-	button_genSendAllObjects = AddPageControl("BUTTON", "Send All Objects",  BS_PUSHBUTTON, 7, 80);
+	button_genSendMobyModel = AddPageControl("BUTTON", "Send Object",  BS_PUSHBUTTON, 7, 80);
+	button_genSendAllObjects = AddPageControl("BUTTON", "Send All Objects",  BS_PUSHBUTTON, 95, 80);
 	AddPageLine();
 	button_genRebuildColltree = AddPageControl("BUTTON", "Rebuild Colltree",  BS_PUSHBUTTON, 7, 80);
 	button_genRebuildColltris = AddPageControl("BUTTON", "Regen Colltris",  BS_PUSHBUTTON, 95, 80);
@@ -862,7 +863,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 						button_saveTextures, SaveTextures, button_loadTextures, LoadTextures, button_saveMobyTextures, SaveObjectTextures,
 						button_loadMobyTextures, LoadObjectTextures, button_saveSky, SaveSky, button_saveColours, SaveColours, button_loadColours, LoadColours, 
 						button_epicPinkMode, PinkMode, button_colorBGone, ColorlessMode, button_creepyPasta, CreepypastaMode, button_indieMode, IndieMode, 
-						button_genSendScene, SendLiveGenScene, button_genSendCollision, SendLiveGenCollision, button_genSendSpyro, SendLiveGenSpyro, 
+						button_genSendScene, SendLiveGenScene, button_genResetScene, ResetLiveGenScene, button_genSendCollision, SendLiveGenCollision, button_genSendSpyro, SendLiveGenSpyro, 
 						button_genSendAllObjects, SendLiveGenAllMobys, button_genRebuildColltree, RebuildCollisionTree, 
 						button_genRebuildColltris, RebuildCollisionTriangles};
 

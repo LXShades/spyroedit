@@ -64,6 +64,7 @@ void UpdatePowers() {
 				continue;
 
 #define RECALCDIST dist = Distance(mobys[i].x, mobys[i].y, mobys[i].z, curSpyro->x, curSpyro->y, curSpyro->z)
+			Moby* moby = &mobys[i];
 			bool killable = (mobys[i].type != 206); // Question mark jars can freeze Spyro if destroyed from a distance
 			int dist = Distance(mobys[i].x, mobys[i].y, mobys[i].z, curSpyro->x, curSpyro->y, curSpyro->z);
 			float angle = atan2((float) (mobys[i].y - curSpyro->y), (float) (mobys[i].x - curSpyro->x));
@@ -81,10 +82,10 @@ void UpdatePowers() {
 				if (dist - attractAmt < 1000)
 					attractAmt = dist - 1000;
 
-				float dir = atan2((float) -(mobys[i].y - curSpyro->y), (float) -(mobys[i].x - curSpyro->x));
-				mobys[i].x += cos(dir) * attractAmt;
-				mobys[i].y += sin(dir) * attractAmt;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractAmt;
+				float dir = atan2((float) -(moby->y - curSpyro->y), (float) -(moby->x - curSpyro->x));
+				moby->SetPosition(moby->x + cos(dir) * attractAmt, 
+									 moby->y + sin(dir) * attractAmt, 
+									 moby->z - sin(atan2((float) (moby->z - curSpyro->z), dist)) * attractAmt);
 
 				RECALCDIST;
 			}
@@ -92,26 +93,25 @@ void UpdatePowers() {
 			if ((curPowers & PWR_REPELSTARE) && dist < 10000 && angDifference < 64) {
 				float repelForce = (8000.0f - (float) dist) / 10.0f * (1.0f - angDifference / 64.0f);
 
-				mobys[i].x += cos(angle) * repelForce;
-				mobys[i].y += sin(angle) * repelForce;
+				moby->SetPosition(moby->x + cos(angle) * repelForce, moby->y + sin(angle) * repelForce, moby->z);
 					
 				RECALCDIST;
 			}
 
-			if ((curPowers & PWR_ATTRACTSTARE) && dist < 10000 && angDifference < 5/* && mobys[i].type == 1*/) { // GEM HACK
+			if ((curPowers & PWR_ATTRACTSTARE) && dist < 10000 && angDifference < 5/* && moby->type == 1*/) { // GEM HACK
 				float attractForce = dist < 400 ? (float) dist : 400.0f;
 
 				if (dist - attractForce < 600)
 					attractForce = dist - 600;
 
-				mobys[i].x -= cos(angle) * attractForce;
-				mobys[i].y -= sin(angle) * attractForce;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractForce;
+				moby->SetPosition(moby->x - cos(angle) * attractForce, 
+								  moby->y - sin(angle) * attractForce, 
+								  moby->z - sin(atan2((float) (moby->z - curSpyro->z), dist)) * attractForce);
 					
 				RECALCDIST;
 			}
 				
-			if ((curPowers & PWR_GEMATTRACT) && mobys[i].type == 1 && dist < 100000) {
+			if ((curPowers & PWR_GEMATTRACT) && moby->type == 1 && dist < 100000) {
 				float attractAmt = (100000.0f - (float) dist) / 10.0f;
 				//float attractAmt = dist < 400 ? (float) dist : 400.0f;
 
@@ -120,39 +120,37 @@ void UpdatePowers() {
 				if (attractAmt > dist)
 					attractAmt = dist;
 
-				float dir = atan2((float) -(mobys[i].y - curSpyro->y), (float) -(mobys[i].x - curSpyro->x));
-				mobys[i].x += cos(dir) * attractAmt;
-				mobys[i].y += sin(dir) * attractAmt;
-				mobys[i].z -= sin(atan2((float) (mobys[i].z - curSpyro->z), dist)) * attractAmt;
+				float dir = atan2((float) -(moby->y - curSpyro->y), (float) -(moby->x - curSpyro->x));
+				moby->SetPosition(moby->x + cos(dir) * attractAmt, moby->y + sin(dir) * attractAmt, moby->z - sin(atan2((float) (moby->z - curSpyro->z), dist)) * attractAmt);
 					
 				RECALCDIST;
 			}
 
 			if (((curPowers & PWR_SUPERBASH) || (curPowers & PWR_ULTRABASH)) && headbashingPlayer == j && killable) {
 				if (dist < shockwaveDist || (curPowers & PWR_ULTRABASH))
-					mobys[i].attackFlags = 0x00950000;
+					moby->attackFlags = 0x00950000;
 			}
 
-			if ((curPowers & PWR_BUTTERFLYBREATH) && mobys[i].attackFlags == 0x00010000 && mobys[i].type != 16 && 
-				((!(uintmem[0x0006F9F8 / 4] < 300 && mobys[i].type == 527)) || game != SPYRO3)) { // SHEILA HACK
+			if ((curPowers & PWR_BUTTERFLYBREATH) && moby->attackFlags == 0x00010000 && moby->type != 16 && 
+				((!(uintmem[0x0006F9F8 / 4] < 300 && moby->type == 527)) || game != SPYRO3)) { // SHEILA HACK
 				// Butterfly ID: 16
 				Animation null = {0, 0, 0, 0};
 				uint32* uintmem = (uint32*) memory;
 
-				mobys[i].extraData = 0x80000000;
-				mobys[i].collisionData = 0;
-				mobys[i].anim = null;
-				mobys[i].anim.nextFrame = 1;
-				mobys[i].type = 16;
-				mobys[i].state = 0;
-				//mobys[i]._unknown[0] = 0;
-				//mobys[i]._unknown[1] = 0;
-				mobys[i].animSpeed = 0x30;
-				mobys[i].animRun = 0xFF;
+				moby->extraData = 0x80000000;
+				moby->collisionData = 0;
+				moby->anim = null;
+				moby->anim.nextFrame = 1;
+				moby->type = 16;
+				moby->state = 0;
+				//moby->_unknown[0] = 0;
+				//moby->_unknown[1] = 0;
+				moby->animSpeed = 0x30;
+				moby->animRun = 0xFF;
 
-				uintmem[0x00000000/4] = mobys[i].x;
-				uintmem[0x00000004/4] = mobys[i].y;
-				uintmem[0x00000008/4] = mobys[i].z + 10000;
+				uintmem[0x00000000/4] = moby->x;
+				uintmem[0x00000004/4] = moby->y;
+				uintmem[0x00000008/4] = moby->z + 10000;
 				uintmem[0x0000000c/4] = 0x05dc0001;
 				uintmem[0x00000010/4] = 0x1cc80000;
 				uintmem[0x00000014/4] = 0x00000000;
@@ -160,41 +158,37 @@ void UpdatePowers() {
 
 			// DEATH STARE, deserves more code; doesn't need it though!
 			if ((curPowers & PWR_DEATHSTARE) && dist < 10000 && killable && angDifference <= 5)
-				mobys[i].attackFlags = 0x00950000; // SuperFlame: 00950000 Frozen Altars Laser: 10000000
+				moby->attackFlags = 0x00950000; // SuperFlame: 00950000 Frozen Altars Laser: 10000000
 
 			if ((curPowers & PWR_DEATHFIELD) && dist < 10000 && killable)
-				mobys[i].attackFlags = 0x00950000;
+				moby->attackFlags = 0x00950000;
 
-			if ((curPowers & PWR_REPULSION) && mobys[i].type != 120 && dist <= 8000) { // Don't repel Sparx
+			if ((curPowers & PWR_REPULSION) && moby->type != 120 && dist <= 8000) { // Don't repel Sparx
 				float repelForce = (8000.0f - (float) dist) / 10.0f;
 
-				mobys[i].x += cos(angle) * repelForce;
-				mobys[i].y += sin(angle) * repelForce;
+				moby->SetPosition(moby->x + cos(angle) * repelForce, moby->y + sin(angle) * repelForce, moby->z);
 					
 				RECALCDIST;
 			}
 
-			if ((curPowers & PWR_FORCEFIELD) && mobys[i].type != 120 && dist < 2250) {
-				mobys[i].x += cos(angle) * (2250 - dist);
-				mobys[i].y += sin(angle) * (2250 - dist);
+			if ((curPowers & PWR_FORCEFIELD) && moby->type != 120 && dist < 2250) {
+				moby->SetPosition(moby->x + cos(angle) * (2250 - dist), moby->y + sin(angle) * (2250 - dist), moby->z);
 					
 				RECALCDIST;
 			}
 
-			if ((curPowers & PWR_TORNADO) && dist < 10000 && mobys[i].type != 120) {
-				mobys[i].x += cos(angle - 3.141592f / 2.0f) * 600;
-				mobys[i].y += sin(angle - 3.141592f / 2.0f) * 600;
+			if ((curPowers & PWR_TORNADO) && dist < 10000 && moby->type != 120) {
+				moby->SetPosition(moby->x + cos(angle - 3.141592f / 2.0f) * 600, moby->y + sin(angle - 3.141592f / 2.0f) * 600, moby->z);
 
 				// Don't throw them out of orbit, now!
-				int newDist = Distance(curSpyro->x, curSpyro->y, curSpyro->z, mobys[i].x, mobys[i].y, mobys[i].z);
-				mobys[i].x = (mobys[i].x - curSpyro->x) * dist / newDist + curSpyro->x;
-				mobys[i].y = (mobys[i].y - curSpyro->y) * dist / newDist + curSpyro->y;
+				int newDist = Distance(curSpyro->x, curSpyro->y, curSpyro->z, moby->x, moby->y, moby->z);
+				moby->SetPosition((moby->x - curSpyro->x) * dist / newDist + curSpyro->x, (moby->y - curSpyro->y) * dist / newDist + curSpyro->y, moby->z);
 					
 				//RECALCDIST; No need; we're locking the distance
 			}
 
 			if ((curPowers & PWR_TELEKINESIS) && dist < 15000 && angDifference <= 5 && uintmem[0x00071340/4] == 7 && // Note: Only currently compatible with PAL (camera mode code)
-				mobys[i].type != 1002 && game == SPYRO3 && gameRegion == PAL) {
+				moby->type != 1002 && game == SPYRO3 && gameRegion == PAL) {
 
 				if (tkObject == -1) {
 					tkObject = i;
@@ -216,9 +210,9 @@ void UpdatePowers() {
 				int dist = Distance(mobys[tkObject].x, mobys[tkObject].y, mobys[tkObject].z, curSpyro->x, curSpyro->y, curSpyro->z);
 				float angleRad = ToRad((uint8) curSpyro->headAngle.z + (uint8) curSpyro->angle.z);
 				float verAngleRad = ToRad((uint8) curSpyro->headAngle.y + (uint8) curSpyro->angle.y);
-				mobys[tkObject].x = curSpyro->x + cos(angleRad) * tkLockDist * cos(verAngleRad);
-				mobys[tkObject].y = curSpyro->y + sin(angleRad) * tkLockDist * cos(verAngleRad);
-				mobys[tkObject].z = curSpyro->z + tkLockDist * sin(verAngleRad);
+				mobys[tkObject].SetPosition(curSpyro->x + cos(angleRad) * tkLockDist * cos(verAngleRad), 
+											curSpyro->y + sin(angleRad) * tkLockDist * cos(verAngleRad),
+											curSpyro->z + tkLockDist * sin(verAngleRad));
 			}
 		}
 	}

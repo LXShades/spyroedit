@@ -523,10 +523,16 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 				(vert1.z >> 8) != (p1Z >> 8) || (vert2.z >> 8) != (p2Z >> 8) || (vert3.z >> 8) != (p3Z >> 8)) {
 				doRefreshColltree = true;
 			}
+		}
+
+		tri->SetPoints(vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
+
 	}
 
-		tri->SetPoints(0, vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
-
+	if (triangles) {
+		for (int i = 0; i < numTriangles; ++i) {
+			triangles[i].zCoords |= 0x8000;
+		}
 	}
 
 	// Refresh collision tree if polygons were moved out of their original block
@@ -789,6 +795,16 @@ void Scene::GenerateCrater(int centreX, int centreY, int centreZ) {
 	}
 }
 
+void Scene::Reset() {
+	if (originalScene.scene && spyroScene) {
+		originalScene.PasteSnapshot(spyroScene);
+
+		for (int i = 0; i < spyroScene->numSectors; ++i) {
+			ConvertSpyroToGen(i);
+		}
+	}
+}
+
 void Scene::Cleanup() {
 	originalScene.Cleanup();
 }
@@ -804,6 +820,8 @@ void Scene::SpyroSceneCache::CopySnapshot(const SpyroSceneHeader* sourceScene) {
 void Scene::SpyroSceneCache::PasteSnapshot(SpyroSceneHeader* destScene) {
 	if (this->scene) {
 		memcpy(destScene, this->scene, this->scene->size);
+
+		// Todo: Make sure each sector is appropriately allocated, etc
 	}
 }
 

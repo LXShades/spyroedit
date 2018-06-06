@@ -35,6 +35,9 @@ public:
 
 	void SetGenScene(class GenScene* scene) {genScene = scene;}
 	void SetSpyroScene(const SpyroPointer<struct SpyroSceneHeader>& newPointer) {spyroScene = newPointer;}
+
+	// Resets the scene to its originally loaded state
+	void Reset();
 	
 	// Gets the original scene backup since level load
 	inline int GetOriginalSceneSize() const;

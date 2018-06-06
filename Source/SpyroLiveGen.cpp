@@ -143,9 +143,10 @@ void UpdateLiveGen() {
 
 			const GenTransform* trans = ((GenInst*)obj)->GetTransform();
 			mobys[mobyId].angle.z = (int) (trans->localRotation.z / 6.28f * 255.0f);
-			mobys[mobyId].x = (int) (trans->localTranslation.x / MOBYPOSITIONSCALE);
-			mobys[mobyId].y = (int) (trans->localTranslation.y / MOBYPOSITIONSCALE);
-			mobys[mobyId].z = (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSITIONSCALE);
+
+			mobys[mobyId].SetPosition((int) (trans->localTranslation.x / MOBYPOSITIONSCALE), 
+									  (int) (trans->localTranslation.y / MOBYPOSITIONSCALE), 
+									  (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSITIONSCALE));
 		}
 
 		// Move Spyro
@@ -268,6 +269,10 @@ void SendLiveGenScene() {
 	scene.UploadToGen();
 }
 
+void ResetLiveGenScene() {
+	scene.Reset();
+}
+
 void SendLiveGenCollision() {
 	if (!live || !spyroCollision.IsValid())
 		return;
@@ -294,7 +299,7 @@ void SendLiveGenCollision() {
 	GenMeshFace* faces = mesh->LockFaces();
 
 	for (int part = 0, e = numTriangles * 3; part < e; part += 3) {
-		int16 offX = triangles[part+0] & 0x3FFF, offY = triangles[part+1] & 0x3FFF, offZ = triangles[part+2] & 0x3FFF;
+		int16 offX = triangles[part+0] & 0x3FFF, offY = triangles[part+1] & 0x3FFF, offZ = triangles[part+2] & 0xFFFF;
 		int16 p1X = offX, p2X = bitss(triangles[part+0], 14, 9) + offX, p3X = bitss(triangles[part+0], 23, 9) + offX;
 		int16 p1Y = offY, p2Y = bitss(triangles[part+1], 14, 9) + offY, p3Y = bitss(triangles[part+1], 23, 9) + offY;
 		int16 p1Z = offZ, p2Z = bitsu(triangles[part+2], 16, 8) + offZ, p3Z = bitsu(triangles[part+2], 24, 8) + offZ;
@@ -950,7 +955,7 @@ void SetupCollisionLinks() {
 	collisionCache.numUnlinkedTriangles = 0;
 
 	// NEW: Rebuild collision cache
-	if ((spyroCollision.IsValid() /* || s1CollData uncommented until surface types clarified */) && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
+	if (spyroCollision.IsValid() && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
 		CollTri* triangles = spyroCollision.triangles;
 		int numTriangles = spyroCollision.numTriangles;
 		uint16* triangleTypes = spyroCollision.surfaceType;
@@ -1105,11 +1110,9 @@ void RebuildCollisionTriangles() {
 	int numTriangles = 0;
 
 	for (int s = 0; s < scene.spyroScene->numSectors; s++) {
-		GenMesh* genSector = NULL;
+		GenMesh* genSector = scene.GetGenSector(s);
 		scene.ConvertSpyroToGen(s);
 
-		if (genSectors[s])
-			genSector = genSectors[s]->GetMesh();
 		if (!genSector)
 			continue;
 
@@ -1121,7 +1124,7 @@ void RebuildCollisionTriangles() {
 							  *vert3 = &genVerts[genFaces[i].sides[(t*2+2) & 3].vert].pos;
 
 				// Relocate the vertices
-				triangles[numTriangles].SetPoints(numTriangles,
+				triangles[numTriangles].SetPoints(
 					(int)(vert1->x / WORLDSCALE), (int)(vert1->y / WORLDSCALE), (int)(vert1->z / WORLDSCALE), 
 					(int)(vert2->x / WORLDSCALE), (int)(vert2->y / WORLDSCALE), (int)(vert2->z / WORLDSCALE), 
 					(int)(vert3->x / WORLDSCALE), (int)(vert3->y / WORLDSCALE), (int)(vert3->z / WORLDSCALE));
