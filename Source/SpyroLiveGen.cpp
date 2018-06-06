@@ -304,11 +304,14 @@ void SendLiveGenCollision() {
 		verts[part+2].pos.x = (float) p3X * WORLDSCALE; verts[part+2].pos.y = (float) p3Y * WORLDSCALE; verts[part+2].pos.z = (float) p3Z * WORLDSCALE;
 
 		GenMeshFace* face = &faces[part / 3];
-		faces[part].numSides = 3;
-		faces[part].sides[0].vert = part;
-		faces[part].sides[1].vert = part + 1;
-		faces[part].sides[2].vert = -(part + 2) - 1;
+		face->numSides = 3;
+		face->sides[0].vert = part;
+		face->sides[1].vert = part + 1;
+		face->sides[2].vert = part + 2;
 	}
+
+	mesh->UnlockVerts(verts);
+	mesh->UnlockFaces(faces);
 
 	// Send all the objects over LiveGen
 	live->SendState(model->GetState(GENCOMMON_MULTIPLE).GetSubstate());
