@@ -186,8 +186,6 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	int oldNumVerts = sector->numHpVertices, oldNumFaces = sector->numHpFaces;
 	int numVerts = genSector->GetNumVerts(), numFaces = genSector->GetNumFaces(), numColours = genSector->GetNumColours();
 
-	// 000A96D0 flipped triangle in Midday Gardens
-
 	// Cap number of elements
 	if (numVerts > 0xFF) numVerts = 0xFF;
 	if (numFaces > 0xFF) numFaces = 0xFF;
@@ -307,28 +305,17 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	// UPDATE FACES
 	SceneFace* faces = (SceneFace*) &sector->data32[hpFaceStart];
 	const GenMeshFace* genFaces = genSector->GetFaces();
+	int vertCap = numVerts ? numVerts : 1, colourCap = numColours ? numColours : 1;
 	for (int i = 0; i < numFaces; i++) {
 		int add = (genFaces[i].numSides == 3) ? 1 : 0;
 		bool isFlipped = faces[i].GetFlip();
 		for (int j = 0; j < genFaces[i].numSides; j++) {
-			faces[i].verts[j + add] = genFaces[i].sides[3 - add - j].vert;
-			faces[i].colours[j + add] = genFaces[i].sides[3 - add - j].colour;
+			faces[i].verts[j + add] = genFaces[i].sides[3 - add - j].vert % vertCap;
+			faces[i].colours[j + add] = genFaces[i].sides[3 - add - j].colour % colourCap;
 		}
 
 		if (genFaces[i].numSides == 3)
 			faces[i].verts[0] = faces[i].verts[1];
-
-		// Safety
-		for (int j = 0; j < 4; j++) {
-			if (numVerts)
-				faces[i].verts[j] %= numVerts;
-			else
-				faces[i].verts[j] = 0;
-			if (numColours)
-				faces[i].colours[j] %= numColours;
-			else
-				faces[i].colours[j] = 0;
-		}
 
 		faces[i].word3 = 0x5732B824;
 		faces[i].word4 = 0x577284AD;
@@ -527,12 +514,6 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 
 		tri->SetPoints(vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
 
-	}
-
-	if (triangles) {
-		for (int i = 0; i < numTriangles; ++i) {
-			triangles[i].zCoords |= 0x8000;
-		}
 	}
 
 	// Refresh collision tree if polygons were moved out of their original block

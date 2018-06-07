@@ -299,7 +299,7 @@ void SendLiveGenCollision() {
 	GenMeshFace* faces = mesh->LockFaces();
 
 	for (int part = 0, e = numTriangles * 3; part < e; part += 3) {
-		int16 offX = triangles[part+0] & 0x3FFF, offY = triangles[part+1] & 0x3FFF, offZ = triangles[part+2] & 0xFFFF;
+		int16 offX = triangles[part+0] & 0x3FFF, offY = triangles[part+1] & 0x3FFF, offZ = triangles[part+2] & 0x3FFF;
 		int16 p1X = offX, p2X = bitss(triangles[part+0], 14, 9) + offX, p3X = bitss(triangles[part+0], 23, 9) + offX;
 		int16 p1Y = offY, p2Y = bitss(triangles[part+1], 14, 9) + offY, p3Y = bitss(triangles[part+1], 23, 9) + offY;
 		int16 p1Z = offZ, p2Z = bitsu(triangles[part+2], 16, 8) + offZ, p3Z = bitsu(triangles[part+2], 24, 8) + offZ;
@@ -954,12 +954,12 @@ void SetupCollisionLinks() {
 		collisionCache.sectorCaches[i].numTriangles = 0;
 	collisionCache.numUnlinkedTriangles = 0;
 
-	// NEW: Rebuild collision cache
+	// Rebuild collision cache
 	if (spyroCollision.IsValid() && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
 		CollTri* triangles = spyroCollision.triangles;
 		int numTriangles = spyroCollision.numTriangles;
 		uint16* triangleTypes = spyroCollision.surfaceType;
-		const int maxSeparationDistance = 4;
+		const int maxSeparationDistance = 6;
 		bool* cachedTriangles = (bool*) malloc(numTriangles * sizeof (bool)); // For each triangle, value is true if it has now been cached
 		memset(cachedTriangles, 0, numTriangles * sizeof (bool));
 
@@ -1006,14 +1006,14 @@ void SetupCollisionLinks() {
 			for (CollTri* tri = triangles; tri < &triangles[numTriangles]; ++tri) {
 				// Eliminate triangles that are outside the sector boundary
 				int16 p1X = bitsu(tri->xCoords, 0, 14), p2X = bitss(tri->xCoords, 14, 9) + p1X, p3X = bitss(tri->xCoords, 23, 9) + p1X;
-				if (p1X < minX || p1X > maxX)
-					continue;
+				/*if (p1X < minX || p1X > maxX)
+					continue;*/
 				int16 p1Y = bitsu(tri->yCoords, 0, 14), p2Y = bitss(tri->yCoords, 14, 9) + p1Y, p3Y = bitss(tri->yCoords, 23, 9) + p1Y;
-				if (p1Y < minY || p1Y > maxY)
-					continue;
+				/*if (p1Y < minY || p1Y > maxY)
+					continue;*/
 				int16 p1Z = bitsu(tri->zCoords, 0, 14), p2Z = bitsu(tri->zCoords, 16, 8) + p1Z, p3Z = bitsu(tri->zCoords, 24, 8) + p1Z;
-				if (p1Z < minZ || p1Z > maxZ)
-					continue;
+				/*if (p1Z < minZ || p1Z > maxZ)
+					continue;*/
 
 				// Check if the vertices match with any of this sector's faces
 				int matches[4];
@@ -1056,6 +1056,7 @@ void SetupCollisionLinks() {
 						collSector->numTriangles++;
 
 						cachedTriangles[tri - triangles] = true;
+						break;
 					}
 				}
 			}

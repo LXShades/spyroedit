@@ -545,21 +545,21 @@ inline void CollTri::SetPoints(int p1X, int p1Y, int p1Z, int p2X, int p2Y, int 
 
 		xCoords = bitsout(p1X, 0, 14) | bitsout(p2X - p1X, 14, 9) | bitsout(p3X - p1X, 23, 9);
 		yCoords = bitsout(p1Y, 0, 14) | bitsout(p2Y - p1Y, 14, 9) | bitsout(p3Y - p1Y, 23, 9);
-		zCoords = bitsout(p1Z, 0, 16) | bitsout(p2Z - p1Z, 16, 8) | bitsout(p3Z - p1Z, 24, 8);
+		zCoords = bitsout(p1Z, 0, 14) | bitsout(p2Z - p1Z, 16, 8) | bitsout(p3Z - p1Z, 24, 8);
 	} else if (p2Z <= p1Z && p2Z <= p3Z && 
 		(p3X - p2X) >= -255 && (p3X - p2X) <= 255 && (p3Y - p2Y) >= -255 && (p3Y - p2Y) <= 255 &&
 		(p1X - p2X) >= -255 && (p1X - p2X) <= 255 && (p1Y - p2Y) >= -255 && (p1Y - p2Y) <= 255) {
 
 		xCoords = bitsout(p2X, 0, 14) | bitsout(p3X - p2X, 14, 9) | bitsout(p1X - p2X, 23, 9);
 		yCoords = bitsout(p2Y, 0, 14) | bitsout(p3Y - p2Y, 14, 9) | bitsout(p1Y - p2Y, 23, 9);
-		zCoords = bitsout(p2Z, 0, 16) | bitsout(p3Z - p2Z, 16, 8) | bitsout(p1Z - p2Z, 24, 8);
+		zCoords = bitsout(p2Z, 0, 14) | bitsout(p3Z - p2Z, 16, 8) | bitsout(p1Z - p2Z, 24, 8);
 	} else if (p3Z <= p1Z && p3Z <= p2Z && 
 		(p1X - p3X) >= -255 && (p1X - p3X) <= 255 && (p1Y - p3Y) >= -255 && (p1Y - p3Y) <= 255 &&
 		(p2X - p3X) >= -255 && (p2X - p3X) <= 255 && (p2Y - p3Y) >= -255 && (p2Y - p3Y) <= 255) {
 
 		xCoords = bitsout(p3X, 0, 14) | bitsout(p1X - p3X, 14, 9) | bitsout(p2X - p3X, 23, 9);
 		yCoords = bitsout(p3Y, 0, 14) | bitsout(p1Y - p3Y, 14, 9) | bitsout(p2Y - p3Y, 23, 9);
-		zCoords = bitsout(p3Z, 0, 16) | bitsout(p1Z - p3Z, 16, 8) | bitsout(p2Z - p3Z, 24, 8);
+		zCoords = bitsout(p3Z, 0, 14) | bitsout(p1Z - p3Z, 16, 8) | bitsout(p2Z - p3Z, 24, 8);
 	}
 
 	zCoords |= preservedUnknownBits;
