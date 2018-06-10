@@ -186,8 +186,6 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	int oldNumVerts = sector->numHpVertices, oldNumFaces = sector->numHpFaces;
 	int numVerts = genSector->GetNumVerts(), numFaces = genSector->GetNumFaces(), numColours = genSector->GetNumColours();
 
-	// 000A96D0 flipped triangle in Midday Gardens
-
 	// Cap number of elements
 	if (numVerts > 0xFF) numVerts = 0xFF;
 	if (numFaces > 0xFF) numFaces = 0xFF;
@@ -307,28 +305,17 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	// UPDATE FACES
 	SceneFace* faces = (SceneFace*) &sector->data32[hpFaceStart];
 	const GenMeshFace* genFaces = genSector->GetFaces();
+	int vertCap = numVerts ? numVerts : 1, colourCap = numColours ? numColours : 1;
 	for (int i = 0; i < numFaces; i++) {
 		int add = (genFaces[i].numSides == 3) ? 1 : 0;
 		bool isFlipped = faces[i].GetFlip();
 		for (int j = 0; j < genFaces[i].numSides; j++) {
-			faces[i].verts[j + add] = genFaces[i].sides[3 - add - j].vert;
-			faces[i].colours[j + add] = genFaces[i].sides[3 - add - j].colour;
+			faces[i].verts[j + add] = genFaces[i].sides[3 - add - j].vert % vertCap;
+			faces[i].colours[j + add] = genFaces[i].sides[3 - add - j].colour % colourCap;
 		}
 
 		if (genFaces[i].numSides == 3)
 			faces[i].verts[0] = faces[i].verts[1];
-
-		// Safety
-		for (int j = 0; j < 4; j++) {
-			if (numVerts)
-				faces[i].verts[j] %= numVerts;
-			else
-				faces[i].verts[j] = 0;
-			if (numColours)
-				faces[i].colours[j] %= numColours;
-			else
-				faces[i].colours[j] = 0;
-		}
 
 		faces[i].word3 = 0x5732B824;
 		faces[i].word4 = 0x577284AD;
@@ -523,9 +510,9 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 				(vert1.z >> 8) != (p1Z >> 8) || (vert2.z >> 8) != (p2Z >> 8) || (vert3.z >> 8) != (p3Z >> 8)) {
 				doRefreshColltree = true;
 			}
-	}
+		}
 
-		tri->SetPoints(0, vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
+		tri->SetPoints(vert1.x, vert1.y, vert1.z, vert2.x, vert2.y, vert2.z, vert3.x, vert3.y, vert3.z);
 
 	}
 
@@ -789,6 +776,16 @@ void Scene::GenerateCrater(int centreX, int centreY, int centreZ) {
 	}
 }
 
+void Scene::Reset() {
+	if (originalScene.scene && spyroScene) {
+		originalScene.PasteSnapshot(spyroScene);
+
+		for (int i = 0; i < spyroScene->numSectors; ++i) {
+			ConvertSpyroToGen(i);
+		}
+	}
+}
+
 void Scene::Cleanup() {
 	originalScene.Cleanup();
 }
@@ -804,6 +801,8 @@ void Scene::SpyroSceneCache::CopySnapshot(const SpyroSceneHeader* sourceScene) {
 void Scene::SpyroSceneCache::PasteSnapshot(SpyroSceneHeader* destScene) {
 	if (this->scene) {
 		memcpy(destScene, this->scene, this->scene->size);
+
+		// Todo: Make sure each sector is appropriately allocated, etc
 	}
 }
 

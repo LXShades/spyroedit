@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 #include "GenType.h"
 #include "GenState.h"
 

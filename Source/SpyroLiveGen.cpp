@@ -143,9 +143,10 @@ void UpdateLiveGen() {
 
 			const GenTransform* trans = ((GenInst*)obj)->GetTransform();
 			mobys[mobyId].angle.z = (int) (trans->localRotation.z / 6.28f * 255.0f);
-			mobys[mobyId].x = (int) (trans->localTranslation.x / MOBYPOSITIONSCALE);
-			mobys[mobyId].y = (int) (trans->localTranslation.y / MOBYPOSITIONSCALE);
-			mobys[mobyId].z = (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSITIONSCALE);
+
+			mobys[mobyId].SetPosition((int) (trans->localTranslation.x / MOBYPOSITIONSCALE), 
+									  (int) (trans->localTranslation.y / MOBYPOSITIONSCALE), 
+									  (int) ((trans->localTranslation.z - zSubtract) / MOBYPOSITIONSCALE));
 		}
 
 		// Move Spyro
@@ -268,6 +269,10 @@ void SendLiveGenScene() {
 	scene.UploadToGen();
 }
 
+void ResetLiveGenScene() {
+	scene.Reset();
+}
+
 void SendLiveGenCollision() {
 	if (!live || !spyroCollision.IsValid())
 		return;
@@ -304,11 +309,14 @@ void SendLiveGenCollision() {
 		verts[part+2].pos.x = (float) p3X * WORLDSCALE; verts[part+2].pos.y = (float) p3Y * WORLDSCALE; verts[part+2].pos.z = (float) p3Z * WORLDSCALE;
 
 		GenMeshFace* face = &faces[part / 3];
-		faces[part].numSides = 3;
-		faces[part].sides[0].vert = part;
-		faces[part].sides[1].vert = part + 1;
-		faces[part].sides[2].vert = -(part + 2) - 1;
+		face->numSides = 3;
+		face->sides[0].vert = part;
+		face->sides[1].vert = part + 1;
+		face->sides[2].vert = part + 2;
 	}
+
+	mesh->UnlockVerts(verts);
+	mesh->UnlockFaces(faces);
 
 	// Send all the objects over LiveGen
 	live->SendState(model->GetState(GENCOMMON_MULTIPLE).GetSubstate());
@@ -946,12 +954,12 @@ void SetupCollisionLinks() {
 		collisionCache.sectorCaches[i].numTriangles = 0;
 	collisionCache.numUnlinkedTriangles = 0;
 
-	// NEW: Rebuild collision cache
-	if ((spyroCollision.IsValid() /* || s1CollData uncommented until surface types clarified */) && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
+	// Rebuild collision cache
+	if (spyroCollision.IsValid() && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
 		CollTri* triangles = spyroCollision.triangles;
 		int numTriangles = spyroCollision.numTriangles;
 		uint16* triangleTypes = spyroCollision.surfaceType;
-		const int maxSeparationDistance = 4;
+		const int maxSeparationDistance = 6;
 		bool* cachedTriangles = (bool*) malloc(numTriangles * sizeof (bool)); // For each triangle, value is true if it has now been cached
 		memset(cachedTriangles, 0, numTriangles * sizeof (bool));
 
@@ -998,14 +1006,14 @@ void SetupCollisionLinks() {
 			for (CollTri* tri = triangles; tri < &triangles[numTriangles]; ++tri) {
 				// Eliminate triangles that are outside the sector boundary
 				int16 p1X = bitsu(tri->xCoords, 0, 14), p2X = bitss(tri->xCoords, 14, 9) + p1X, p3X = bitss(tri->xCoords, 23, 9) + p1X;
-				if (p1X < minX || p1X > maxX)
-					continue;
+				/*if (p1X < minX || p1X > maxX)
+					continue;*/
 				int16 p1Y = bitsu(tri->yCoords, 0, 14), p2Y = bitss(tri->yCoords, 14, 9) + p1Y, p3Y = bitss(tri->yCoords, 23, 9) + p1Y;
-				if (p1Y < minY || p1Y > maxY)
-					continue;
+				/*if (p1Y < minY || p1Y > maxY)
+					continue;*/
 				int16 p1Z = bitsu(tri->zCoords, 0, 14), p2Z = bitsu(tri->zCoords, 16, 8) + p1Z, p3Z = bitsu(tri->zCoords, 24, 8) + p1Z;
-				if (p1Z < minZ || p1Z > maxZ)
-					continue;
+				/*if (p1Z < minZ || p1Z > maxZ)
+					continue;*/
 
 				// Check if the vertices match with any of this sector's faces
 				int matches[4];
@@ -1048,6 +1056,7 @@ void SetupCollisionLinks() {
 						collSector->numTriangles++;
 
 						cachedTriangles[tri - triangles] = true;
+						break;
 					}
 				}
 			}
@@ -1102,11 +1111,9 @@ void RebuildCollisionTriangles() {
 	int numTriangles = 0;
 
 	for (int s = 0; s < scene.spyroScene->numSectors; s++) {
-		GenMesh* genSector = NULL;
+		GenMesh* genSector = scene.GetGenSector(s);
 		scene.ConvertSpyroToGen(s);
 
-		if (genSectors[s])
-			genSector = genSectors[s]->GetMesh();
 		if (!genSector)
 			continue;
 
@@ -1118,7 +1125,7 @@ void RebuildCollisionTriangles() {
 							  *vert3 = &genVerts[genFaces[i].sides[(t*2+2) & 3].vert].pos;
 
 				// Relocate the vertices
-				triangles[numTriangles].SetPoints(numTriangles,
+				triangles[numTriangles].SetPoints(
 					(int)(vert1->x / WORLDSCALE), (int)(vert1->y / WORLDSCALE), (int)(vert1->z / WORLDSCALE), 
 					(int)(vert2->x / WORLDSCALE), (int)(vert2->y / WORLDSCALE), (int)(vert2->z / WORLDSCALE), 
 					(int)(vert3->x / WORLDSCALE), (int)(vert3->y / WORLDSCALE), (int)(vert3->z / WORLDSCALE));

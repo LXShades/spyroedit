@@ -46,6 +46,8 @@ uint8* skyOcclusion;
 
 SpyroCollision spyroCollision;
 
+SpyroPointer<Moby>* mobyCollisionRegions;
+
 uint32* levelNames;
 int numLevelNames;
 
@@ -215,7 +217,7 @@ void SpyroOnLevelEntry() {
 #define STRIPADDR(addr) ((addr) & 0x003FFFFF)
 
 enum SpyroDataPlacesOfInterest {POI_SPYRO, POI_MOBYS, POI_TEXTURES, POI_LQTEXTURES, POI_HQTEXTURES, POI_SKY, POI_LEVEL, POI_LEVELAREA, POI_LEVELNAMES, POI_SCENE, POI_COLLISION, 
-								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_NUMTYPES};
+								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_MOBYCOLLISIONREGIONS, POI_NUMTYPES};
 
 uint32 spyroPois[POI_NUMTYPES]; // List of Spyro 'places of interest' e.g. areas of code with reference to a required set of data, such as the level scenery
 								// This list is re-used and/or updated on each Spyro data scan. This allows a game disc swap to take place comfortably
@@ -249,6 +251,7 @@ void UpdateSpyroPointers() {
 	gameState = GAMESTATE_NOTFOUND;
 	mobyModels = NULL;
 	levelArea = NULL;
+	mobyCollisionRegions = NULL;
 	spyroCollision.Reset();
 
 	uint32 lastPois[POI_NUMTYPES];
@@ -568,11 +571,20 @@ void UpdateSpyroPointers() {
 
 			// Joker
 			if (!jokerPtr) {
-				if (uintmem[i] == 0x1440000D && uintmem[i+1] == 0x240200FF && uintmem[i+5] == 0x14620006 &&
-					uintmem[i+2] >> 16 == 0x3C03 && uintmem[i+3] >> 16 == 0x9063) {
-					jokerPtr = (uint16*)&umem8[BUILDADDR(uintmem[i+2], uintmem[i+3]) & 0x003FFFFF];
+				if (uintmem[i] == 0x1440000D && uintmem[i+1] == 0x240200FF && uintmem[i+5] == 0x14620006
+						&& uintmem[i+2] >> 16 == 0x3C03 && uintmem[i+3] >> 16 == 0x9063) {
+					jokerPtr = (uint16*)&umem8[BUILDADDR(uintmem[i+2], uintmem[i+3])];
 					joker = ~(*jokerPtr);
 					spyroPois[POI_JOKER] = i;
+				}
+			}
+
+			// Moby collision regions
+			if (!mobyCollisionRegions) {
+				if (uintmem[i+3] == 0x00010B42 && uintmem[i+4] == 0x00021342 && uintmem[i+5] == 0x00021140 && uintmem[i+6] == 0x84860034 && uintmem[i+7] == 0x00220820
+						&& uintmem[i+8] == 0x10260012) {
+					mobyCollisionRegions = (SpyroPointer<Moby>*)&umem8[umem32[BUILDADDR(uintmem[i], uintmem[i+1]) / 4] & 0x003FFFFF];
+					spyroPois[POI_MOBYCOLLISIONREGIONS] = i;
 				}
 			}
 		}

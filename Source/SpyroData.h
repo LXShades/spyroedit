@@ -43,8 +43,17 @@ struct SpyroPointer {
 		}
 	}
 
+	inline SpyroPointer operator=(PointerType* pointer) {
+		address = ((uintptr)pointer - (uintptr)umem32) | 0x80000000;
+		return *this;
+	}
+
 	inline PointerType* operator->() {
 		return (PointerType*) ((uintptr)umem32 + (address & 0x003FFFFF));
+	}
+
+	inline PointerType** operator&() {
+		return (PointerType**)this;
 	}
 
 	template <typename T>
@@ -106,17 +115,20 @@ struct SpyroExtended3 {
 	int32 headXAngle, headYAngle, headZAngle;
 };
 
+extern SpyroPointer<struct Moby>* mobyCollisionRegions;
+
 struct Moby { // Moby size: 0x58
 	int32 extraData; // 0x00
-	int32 unknown; // 0x04
+	SpyroPointer<Moby> nextCollisionChain; // 0x04
 	int32 collisionData;
 
 	int32 x, y, z; // 0x0C
 
 	uint32 attackFlags; // 0x18
 
-	int8 _null[26]; // 0x1C
+	int8 _null[24]; // 0x1C
 
+	int16 collisionRegion; // 0x34
 	int16 type; // 0x36
 
 	int8 _dur[4]; // 0x38
@@ -138,7 +150,46 @@ struct Moby { // Moby size: 0x58
 	int8 distHp;   // 0x4E
 	int8 scaleDown; // 0x4F (Default: 0x20)
 
-	int8 dogtail[8]; // 0x54
+	int8 _unkA; // 0x50
+	int8 _unkB; // 0x51
+	int8 levelSectorIndex; // 0x52
+	int8 _unkC; // 0x53
+
+	int8 _unkD[4]; // 0x54
+
+	void SetPosition(int newX, int newY, int newZ) {
+		// Update the collision region
+		int16 oldCollisionRegion = (x >> 13) + ((y >> 13) << 5);
+		int16 newCollisionRegion = (newX >> 13) + ((newY >> 13) << 5);
+
+		if (newCollisionRegion != oldCollisionRegion && collisionRegion << 2 >= 0 && mobyCollisionRegions && state >= 0) {
+			// Remove this object from the old collision chain
+			SpyroPointer<Moby>* nextItemInChain;
+			nextItemInChain = (SpyroPointer<Moby>*)&mobyCollisionRegions[oldCollisionRegion];
+
+			while (*nextItemInChain != this) {
+				nextItemInChain = (SpyroPointer<Moby>*)&(*nextItemInChain)->nextCollisionChain;
+			}
+
+			*nextItemInChain = this->nextCollisionChain;
+
+			// Add this object to the new collision chain
+			this->nextCollisionChain = mobyCollisionRegions[newCollisionRegion];
+			mobyCollisionRegions[newCollisionRegion] = this;
+
+			this->collisionRegion = newCollisionRegion;
+		}
+
+		if (newX != x || newY != y || newZ != z) {
+			// For now, throw the object into 'just render me like one of your French girls' mode, but only if it actually moved
+			levelSectorIndex = 0xFF;
+
+			// Update the coordinates
+			x = newX;
+			y = newY;
+			z = newZ;
+		}
+	}
 };
 
 struct SpyroSky {
@@ -253,7 +304,7 @@ struct CollTri {
 	uint32 yCoords;
 	uint32 zCoords;
 
-	inline void SetPoints(int myId, int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z);
+	inline void SetPoints(int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z);
 };
 
 class SpyroCollision {
@@ -485,27 +536,31 @@ int8 ToAngle(float rad);
 
 extern "C" void (__stdcall* Reset_Recompiler)(void);
 
-inline void CollTri::SetPoints(int myId, int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z) {
+inline void CollTri::SetPoints(int p1X, int p1Y, int p1Z, int p2X, int p2Y, int p2Z, int p3X, int p3Y, int p3Z) {
+	uint32 preservedUnknownBits = zCoords & 0xC000;
+
 	if (p1Z <= p2Z && p1Z <= p3Z && 
 		(p2X - p1X) >= -255 && (p2X - p1X) <= 255 && (p2Y - p1Y) >= -255 && (p2Y - p1Y) <= 255 &&
 		(p3X - p1X) >= -255 && (p3X - p1X) <= 255 && (p3Y - p1Y) >= -255 && (p3Y - p1Y) <= 255) {
 
 		xCoords = bitsout(p1X, 0, 14) | bitsout(p2X - p1X, 14, 9) | bitsout(p3X - p1X, 23, 9);
 		yCoords = bitsout(p1Y, 0, 14) | bitsout(p2Y - p1Y, 14, 9) | bitsout(p3Y - p1Y, 23, 9);
-		zCoords = bitsout(p1Z, 0, 16) | bitsout(p2Z - p1Z, 16, 8) | bitsout(p3Z - p1Z, 24, 8);
+		zCoords = bitsout(p1Z, 0, 14) | bitsout(p2Z - p1Z, 16, 8) | bitsout(p3Z - p1Z, 24, 8);
 	} else if (p2Z <= p1Z && p2Z <= p3Z && 
 		(p3X - p2X) >= -255 && (p3X - p2X) <= 255 && (p3Y - p2Y) >= -255 && (p3Y - p2Y) <= 255 &&
 		(p1X - p2X) >= -255 && (p1X - p2X) <= 255 && (p1Y - p2Y) >= -255 && (p1Y - p2Y) <= 255) {
 
 		xCoords = bitsout(p2X, 0, 14) | bitsout(p3X - p2X, 14, 9) | bitsout(p1X - p2X, 23, 9);
 		yCoords = bitsout(p2Y, 0, 14) | bitsout(p3Y - p2Y, 14, 9) | bitsout(p1Y - p2Y, 23, 9);
-		zCoords = bitsout(p2Z, 0, 16) | bitsout(p3Z - p2Z, 16, 8) | bitsout(p1Z - p2Z, 24, 8);
+		zCoords = bitsout(p2Z, 0, 14) | bitsout(p3Z - p2Z, 16, 8) | bitsout(p1Z - p2Z, 24, 8);
 	} else if (p3Z <= p1Z && p3Z <= p2Z && 
 		(p1X - p3X) >= -255 && (p1X - p3X) <= 255 && (p1Y - p3Y) >= -255 && (p1Y - p3Y) <= 255 &&
 		(p2X - p3X) >= -255 && (p2X - p3X) <= 255 && (p2Y - p3Y) >= -255 && (p2Y - p3Y) <= 255) {
 
 		xCoords = bitsout(p3X, 0, 14) | bitsout(p1X - p3X, 14, 9) | bitsout(p2X - p3X, 23, 9);
 		yCoords = bitsout(p3Y, 0, 14) | bitsout(p1Y - p3Y, 14, 9) | bitsout(p2Y - p3Y, 23, 9);
-		zCoords = bitsout(p3Z, 0, 16) | bitsout(p1Z - p3Z, 16, 8) | bitsout(p2Z - p3Z, 24, 8);
+		zCoords = bitsout(p3Z, 0, 14) | bitsout(p1Z - p3Z, 16, 8) | bitsout(p2Z - p3Z, 24, 8);
 	}
+
+	zCoords |= preservedUnknownBits;
 }

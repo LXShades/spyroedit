@@ -219,9 +219,7 @@ void ObjectEditorLoop() {
 			reldragz = mobys[id].z - spyro->z;
 		}
 
-		mobys[id].x = spyro->x + reldragx;
-		mobys[id].y = spyro->y + reldragy;
-		mobys[id].z = spyro->z + reldragz;
+		mobys[id].SetPosition(spyro->x + reldragx, spyro->y + reldragy, spyro->z + reldragz);
 
 		lastobjid = id;
 		lastchecked = 1;
