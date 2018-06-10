@@ -36,8 +36,18 @@ struct GenValueSet {
 
 	// Constructors
 	GenValueSet() {};
+	GenValueSet(const GenValueSet& other) {memcpy(this, &other, other.GetSize());}
 	GenValueSet(gens32 _iValue) : type(GENTYPE_S32), s32{_iValue}, numValues(1) {};
 	GenValueSet(genf32 _fValue) : type(GENTYPE_F32), f32{_fValue}, numValues(1) {};
+	GenValueSet(const char* strValue) : type(GENTYPE_CSTRING) {
+		int count;
+		for (count = 0; strValue[count]; ++count) {
+			u8[count] = strValue[count];
+		}
+
+		u8[count] = '\0';
+		numValues = count + 1;
+	}
 
 	// Returns the total size of these elements including the header
 	inline genu32 GetSize() const;
@@ -75,7 +85,16 @@ public:
 	inline int GetNumStrings();
 };
 
-// A memory-managed version of GenValueSet for variable-sized elements
+// A sized version of GenValueSet, so you can provide values of a specific size
+template<const int setSize = 0>
+struct GenValueSetContainer : public GenValueSet {
+	// Inherit GenValueSet constructors (C++11 only)
+	using GenValueSet::GenValueSet;
+
+	genu8 extraBytes[setSize];
+};
+
+// A manager for storing value sets within value sets
 class GenMixedValueSet {
 	public:
 		inline GenMixedValueSet() {Create();};

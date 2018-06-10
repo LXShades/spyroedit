@@ -195,7 +195,7 @@ class GenInst : public GenObject {
 		GenTransform transform;
 };
 
-// GenMod --remember to update modInitTable!--
+// GenMod --remember to update Modifier::typeDefs if changing!--
 enum GenModifierType : genu16 {
 	MOD_UNDEFINED = 0, // This monster exists due to the magic of implicit creation
 
@@ -555,18 +555,19 @@ inline void GenMod::SetProperty(const char* propTag, const GenValueSet& value) {
 	}
 
 	if (existingProp) {
-		if (existingProp->value.GetSize() < value.GetSize()) {
+		if (value.GetSize() > existingProp->value.GetSize()) {
 			// Delete the old prop and make a new one
 			delete existingProp;
 
-			existingProp = new GenProp(propTag, value);
+			// Ow my eyes!
+			new (existingProp = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues))) GenProp(propTag, value);
 		} else {
 			// Just copy the value (Todo: Shrink when necessary)
 			existingProp->value.Copy(value);
 		}
 	} else {
-		// Create a new prop and append it to this instance's prop list
-		props.Append() = new GenProp(propTag, value);
+		// Create a new prop and append it to this instance's prop list. Behold the worst new statement you've ever burned your eyes on!
+		new (props.Append() = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues))) GenProp(propTag, value);
 	}
 }
 
