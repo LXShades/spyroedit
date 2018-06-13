@@ -118,6 +118,25 @@ struct SceneSectorHeader {
 	inline SceneFace* GetHpFaces() {
 		return (SceneFace*) &data32[numLpVertices + numLpColours + numLpFaces * 2 + numHpVertices + numHpColours * 2];
 	}
+
+	inline void GetHpVertexAbsolutePositions(IntVector positions[256]) {
+		uint32* verts = GetHpVertices();
+		int sectorX = xyPos >> 16, sectorY = (xyPos & 0xFFFF), sectorZ = ((zPos >> 14) & 0xFFFF) >> 2;
+		bool isSectorFlat = (centreRadiusAndFlags >> 12 & 1);
+
+		for (int i = 0; i < numHpVertices; ++i) {
+			uint32 curVertex = verts[i];
+			positions[i].x = sectorX + ((curVertex >> 19 & 0x1FFC) >> 2);
+			positions[i].y = sectorY + ((curVertex >> 8 & 0x1FFC) >> 2),
+			positions[i].z = sectorZ + ((curVertex << 3 & 0x1FFC) >> 2);
+
+			if (game == SPYRO1)
+				positions[i].z = sectorZ + ((curVertex << 3 & 0x1FFC) >> 3);
+
+			if (isSectorFlat)
+				positions[i].z >>= 3;
+		}
+	}
 };
 
 struct SpyroSceneHeader {

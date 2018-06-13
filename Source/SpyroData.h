@@ -395,8 +395,6 @@ struct LevelColours {
 
 struct CollTriCache {
 	int32 triangleIndex; // original index of the triangle in the Spyro 3's triangle list
-	uint16 triangleType;
-	CollTri trianglePoints;
 	uint8 faceIndex; // ID of face connected to this colltri, if applicable
 	uint8 vert1Index : 2; // Indices of the face that make this triangle
 	uint8 vert2Index : 2;

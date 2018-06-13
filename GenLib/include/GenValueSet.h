@@ -225,10 +225,6 @@ inline const GenValueSet* GenValueSet::GetValueSet(int index, bool doCheckValid)
 			return currentValueSet;
 		}
 
-		if (currentValueSet->type == GENTYPE_CSTRING || currentValueSet->type == GENTYPE_WSTRING) {
-			byteIndex = byteIndex;
-		}
-
 		// Advance to the next set
 		byteIndex += currentValueSet->GetSize();
 		currentValueSet = (GenValueSet*)(&byte[byteIndex]);

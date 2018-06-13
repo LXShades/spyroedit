@@ -26,14 +26,14 @@ uint32 mobyVertAdjustTable[127] = {
 ILiveGen* live;
 
 GenScene genScene;
-GenModel* genSectors[256];
 
 bool genSceneCreated = false;
 
 extern HWND edit_genIp;
 
 void SendLiveGenMobyInstances();
-void SetupCollisionLinks();
+void SetupCollisionLinks(int minSectorIndex = 0, int maxSectorIndex = -1);
+void ResetCollisionLinks();
 void RebuildCollisionTree();
 void UpdateFlaggedMemory();
 
@@ -42,7 +42,7 @@ void BuildSpyroMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrame);
 
 DWORD lastMobyUpdateTime = 0;
 
-bool colltreeInvalid = false; // set to true to rebuild colltris at the end of the frame
+bool isColltreeValid = true; // set to false to rebuild colltris at the end of the frame
 
 // Receive scene collision from Genesis
 // Regenerate scene collision
@@ -93,9 +93,9 @@ void UpdateLiveGen() {
 	//	MakeIceWall(spyro->x, spyro->y, spyro->z);
 	UpdateFlaggedMemory();
 
-	if (colltreeInvalid) {
+	if (!isColltreeValid) {
 		RebuildCollisionTree();
-		colltreeInvalid = false;
+		isColltreeValid = true;
 	}
 
 	if (!live)
@@ -115,6 +115,15 @@ void UpdateLiveGen() {
 		genid objId = obj->GetId();
 		GenObjType objType = obj->GetObjType();
 
+		GenMesh* testMesh = nullptr; GenModel* testModel = nullptr; GenMod* testMod = nullptr;
+		if (objType == GENOBJ_MESH) {
+			testMesh = (GenMesh*) obj;
+		} else if (objType == GENOBJ_MODEL) {
+			testModel = (GenModel*) obj;
+		} else if (objType == GENOBJ_MOD) {
+			testMod = (GenMod*) obj;
+		}
+
 		// Update scene sector if applicable
 		// Check if model has changed (e.g. mods changed, consequently mesh has changed)
 		if (objId >= GENID_SCENESECTORMODEL && objId <= GENID_SCENESECTORMODEL + 256 && objType == GENOBJ_MODEL) {
@@ -126,9 +135,22 @@ void UpdateLiveGen() {
 		if (objType == GENOBJ_MESH && scene.spyroScene) {
 			for (int i = 0; i < scene.spyroScene->numSectors; i++) {
 				if (GenModel* model = (GenModel*) genScene.GetObjectById(GENID_SCENESECTORMODEL + i)) {
-					genid id1 = obj->GetId(), id2 = model->GetMeshId();
-					if (obj == model->GetMesh())
+					if (objId == model->GetMeshId())
 						scene.ConvertGenToSpyro(i);
+				}
+			}
+		}
+
+		// Check if a mod's mesh has been set (and that mesh is the relevant mesh for a scene sector model)
+		if (objType == GENOBJ_MOD && scene.spyroScene) {
+			genid meshId = ((GenMod*)obj)->GetMeshId();
+
+			if (meshId) {
+				for (int i = 0; i < scene.spyroScene->numSectors; ++i) {
+					if (GenModel* model = (GenModel*) genScene.GetObjectById(GENID_SCENESECTORMODEL + i)) {
+						if (objId == model->GetMeshId())
+							scene.ConvertGenToSpyro(i);
+					}
 				}
 			}
 		}
@@ -228,11 +250,14 @@ void LiveGenOnLevelEntry() {
 			GenMod* mod = (GenMod*) genScene.CreateObject(GENID_SCENESECTORMOD + i, GENOBJ_MOD);
 			GenInst* inst = (GenInst*) genScene.CreateObject(GENID_SCENESECTORINSTANCE + i, GENOBJ_INST);
 			
-			genSectors[i] = model;
 			model->AddModifier(mod->GetId());
 			mod->SetModType(MOD_EDITMESH);
 			inst->SetModel(GENID_SCENESECTORMODEL + i);
 			inst->SetMaterial(GENID_SCENETEXTURE);
+
+			char nameStr[128];
+			sprintf(nameStr, "Sector %i", i);
+			inst->SetName(nameStr);
 		}
 
 		scene.SetGenScene(&genScene);
@@ -241,6 +266,7 @@ void LiveGenOnLevelEntry() {
 	}
 
 	// Create the links between collision data and scenery data
+	ResetCollisionLinks();
 	SetupCollisionLinks();
 
 	// Reset memory pool
@@ -891,13 +917,15 @@ void MakeIceWall(int _x, int _y, int _z) {
 
 	// Ice wall, coming right up
 	SceneSectorHeader* sector = scene.spyroScene->sectors[closestId];
-	GenMesh* genSector = NULL;
+	GenModel* genSectorModel = genScene.GetModelById(GENID_SCENESECTORINSTANCE + closestId);
+	GenMesh* genSector = nullptr;
 
-	if (genSectors[closestId]) {
-		genSector = genSectors[closestId]->GetMesh();
+	if (genSectorModel) {
+		genSector = genSectorModel->GetMesh();
+	}
 
-		if (!genSector)
-			return;
+	if (!genSector) {
+		return;
 	}
 
 	int startVert = genSector->GetNumVerts(), startFace = genSector->GetNumFaces();
@@ -944,59 +972,44 @@ void MoveSceneData(SceneSectorHeader* sector, int start, int size, int moveOffse
 	}
 }
 
-void SetupCollisionLinks() {
+const int maxSeparationDistance = 6;
+
+void SetupCollisionLinks(int minSectorIndex, int maxSectorIndex) {
 	if (!scene.spyroScene) {
 		return;
 	}
 
-	// Reset collision cache
-	for (int i = 0; i < scene.spyroScene->numSectors; i++)
-		collisionCache.sectorCaches[i].numTriangles = 0;
-	collisionCache.numUnlinkedTriangles = 0;
+	if (maxSectorIndex == -1) {
+		maxSectorIndex = scene.spyroScene->numSectors - 1;
+	}
 
 	// Rebuild collision cache
-	if (spyroCollision.IsValid() && scene.spyroScene && scene.spyroScene->numSectors < 0xFF) {
+	if (spyroCollision.IsValid() && scene.spyroScene) {
 		CollTri* triangles = spyroCollision.triangles;
 		int numTriangles = spyroCollision.numTriangles;
 		uint16* triangleTypes = spyroCollision.surfaceType;
-		const int maxSeparationDistance = 6;
 		bool* cachedTriangles = (bool*) malloc(numTriangles * sizeof (bool)); // For each triangle, value is true if it has now been cached
 		memset(cachedTriangles, 0, numTriangles * sizeof (bool));
 
 		// This operation is slow, so we'll deliberately compartmentalise the collision triangles into smaller--wait. Doesn't Spyro already do this?
 		// Todo: Abuse this Spyro feature
-		for (int s = 0; s < scene.spyroScene->numSectors; s++) {
+		for (int s = minSectorIndex; s <= maxSectorIndex; s++) {
 			SceneSectorHeader* sector = scene.spyroScene->sectors[s];
 			CollSectorCache* collSector = &collisionCache.sectorCaches[s];
 			SceneFace* faces = scene.spyroScene->sectors[s]->GetHpFaces();
-			uint32* verts = scene.spyroScene->sectors[s]->GetHpVertices();
-			int sectorX = sector->xyPos >> 16, sectorY = (sector->xyPos & 0xFFFF), sectorZ = ((sector->zPos >> 14) & 0xFFFF) >> 2;
-			bool flatSector = (sector->centreRadiusAndFlags >> 12 & 1);
 			IntVector absoluteVerts[256];
 			int minX = INT_MAX, minY = INT_MAX, minZ = INT_MAX, maxX = INT_MIN, maxY = INT_MIN, maxZ = INT_MIN;
 
-			// Get absolute vertex positions and sector boundaries
+			sector->GetHpVertexAbsolutePositions(absoluteVerts);
+
+			// Get sector boundaries
 			for (int i = 0; i < sector->numHpVertices; i++) {
-				uint32 curVertex = verts[i];
-				int curX = sectorX + ((curVertex >> 19 & 0x1FFC) >> 2), curY = sectorY + ((curVertex >> 8 & 0x1FFC) >> 2),
-					curZ = sectorZ + ((curVertex << 3 & 0x1FFC) >> 2);
-
-				if (game == SPYRO1)
-					curZ = sectorZ + ((curVertex << 3 & 0x1FFC) >> 3);
-
-				if (flatSector)
-					curZ >>= 3;
-
-				absoluteVerts[i].x = curX;
-				absoluteVerts[i].y = curY;
-				absoluteVerts[i].z = curZ;
-
-				if (curX < minX) minX = curX;
-				if (curY < minY) minY = curY;
-				if (curZ < minZ) minZ = curZ;
-				if (curX > maxX) maxX = curX;
-				if (curY > maxY) maxY = curY;
-				if (curZ > maxZ) maxZ = curZ;
+				if (absoluteVerts[i].x < minX) minX = absoluteVerts[i].x;
+				if (absoluteVerts[i].y < minY) minY = absoluteVerts[i].y;
+				if (absoluteVerts[i].z < minZ) minZ = absoluteVerts[i].z;
+				if (absoluteVerts[i].x > maxX) maxX = absoluteVerts[i].x;
+				if (absoluteVerts[i].y > maxY) maxY = absoluteVerts[i].y;
+				if (absoluteVerts[i].z > maxZ) maxZ = absoluteVerts[i].z;
 			}
 
 			// Stretch out the sector boundaries a little so we can eliminate triangles without an additional subtraction
@@ -1006,14 +1019,14 @@ void SetupCollisionLinks() {
 			for (CollTri* tri = triangles; tri < &triangles[numTriangles]; ++tri) {
 				// Eliminate triangles that are outside the sector boundary
 				int16 p1X = bitsu(tri->xCoords, 0, 14), p2X = bitss(tri->xCoords, 14, 9) + p1X, p3X = bitss(tri->xCoords, 23, 9) + p1X;
-				/*if (p1X < minX || p1X > maxX)
-					continue;*/
+				if (p1X < minX || p1X > maxX)
+					continue;
 				int16 p1Y = bitsu(tri->yCoords, 0, 14), p2Y = bitss(tri->yCoords, 14, 9) + p1Y, p3Y = bitss(tri->yCoords, 23, 9) + p1Y;
-				/*if (p1Y < minY || p1Y > maxY)
-					continue;*/
+				if (p1Y < minY || p1Y > maxY)
+					continue;
 				int16 p1Z = bitsu(tri->zCoords, 0, 14), p2Z = bitsu(tri->zCoords, 16, 8) + p1Z, p3Z = bitsu(tri->zCoords, 24, 8) + p1Z;
-				/*if (p1Z < minZ || p1Z > maxZ)
-					continue;*/
+				if (p1Z < minZ || p1Z > maxZ)
+					continue;
 
 				// Check if the vertices match with any of this sector's faces
 				int matches[4];
@@ -1048,8 +1061,6 @@ void SetupCollisionLinks() {
 						// Match found! Throw it into the cache
 						collSector->triangles[collSector->numTriangles].faceIndex = f;
 						collSector->triangles[collSector->numTriangles].triangleIndex = tri - triangles;
-						collSector->triangles[collSector->numTriangles].trianglePoints = *tri;
-						collSector->triangles[collSector->numTriangles].triangleType = triangleTypes[tri - triangles];
 						collSector->triangles[collSector->numTriangles].vert1Index = matches[0];
 						collSector->triangles[collSector->numTriangles].vert2Index = matches[1];
 						collSector->triangles[collSector->numTriangles].vert3Index = matches[2];
@@ -1088,7 +1099,6 @@ void SetupCollisionLinks() {
 						
 					cacheTri->triangleIndex = tri - triangles;
 					cacheTri->faceIndex = -1;
-					cacheTri->triangleType = triangleTypes[tri - triangles];
 						
 					cachedTriangles[tri - triangles] = true;
 				}
@@ -1097,6 +1107,113 @@ void SetupCollisionLinks() {
 
 		free(cachedTriangles);
 	}
+}
+
+void UpdateCollisionLinks(int sectorIndex) {
+	if (!spyroCollision.triangles || !scene.spyroScene) {
+		return;
+	}
+
+	// Get vertex absolute positions
+	SceneSectorHeader* sector = scene.spyroScene->sectors[sectorIndex];
+	IntVector verts[256];
+	SceneFace* faces = sector->GetHpFaces();
+
+	sector->GetHpVertexAbsolutePositions(verts);
+
+	// See which triangles still match with polygons, and remove those that don't
+	bool* isTriangleMatched = (bool*)malloc(collisionCache.sectorCaches[sectorIndex].numTriangles * sizeof (bool));
+	memset(isTriangleMatched, 0, collisionCache.sectorCaches[sectorIndex].numTriangles * sizeof (bool));
+
+	for (int i = 0; i < collisionCache.sectorCaches[sectorIndex].numTriangles; ++i) {
+		CollTriCache* triCache = &collisionCache.sectorCaches[sectorIndex].triangles[i];
+		CollTri* tri = &spyroCollision.triangles[triCache->triangleIndex];
+
+		int16 p1X = bitsu(tri->xCoords, 0, 14), p2X = bitss(tri->xCoords, 14, 9) + p1X, p3X = bitss(tri->xCoords, 23, 9) + p1X;
+		int16 p1Y = bitsu(tri->yCoords, 0, 14), p2Y = bitss(tri->yCoords, 14, 9) + p1Y, p3Y = bitss(tri->yCoords, 23, 9) + p1Y;
+		int16 p1Z = bitsu(tri->zCoords, 0, 14), p2Z = bitsu(tri->zCoords, 16, 8) + p1Z, p3Z = bitsu(tri->zCoords, 24, 8) + p1Z;
+
+		// First check if the triangle is in the same position as before
+		if (triCache->faceIndex < sector->numHpFaces) {
+			SceneFace* face = &sector->GetHpFaces()[triCache->faceIndex];
+
+			if (verts[face->verts[triCache->vert1Index]].x == p1X && verts[face->verts[triCache->vert1Index]].y == p1Y && verts[face->verts[triCache->vert1Index]].z == p1Z && 
+					verts[face->verts[triCache->vert2Index]].x == p2X && verts[face->verts[triCache->vert2Index]].y == p2Y && verts[face->verts[triCache->vert2Index]].z == p2Z && 
+					verts[face->verts[triCache->vert3Index]].x == p3X && verts[face->verts[triCache->vert3Index]].y == p3Y && verts[face->verts[triCache->vert3Index]].z == p3Z) {
+				isTriangleMatched[i] = true;
+				continue;
+			}
+		}
+
+		// If that didn't work, try to match it up with a new one
+		int matches[4];
+		for (int f = 0; f < sector->numHpFaces; ++f) {
+			int numMatches = 0;
+
+			for (int side = (faces[f].verts[0] == faces[f].verts[1] ? 1 : 0); side < 4; side++) {
+				IntVector* vert = &verts[faces[f].verts[side]];
+				if (vert->x >= p1X - maxSeparationDistance && vert->x <= p1X + maxSeparationDistance &&
+					vert->y >= p1Y - maxSeparationDistance && vert->y <= p1Y + maxSeparationDistance &&
+					vert->z >= p1Z - maxSeparationDistance && vert->z <= p1Z + maxSeparationDistance) {
+					matches[0] = side;
+					++numMatches;
+				}
+
+				if (vert->x >= p2X - maxSeparationDistance && vert->x <= p2X + maxSeparationDistance &&
+					vert->y >= p2Y - maxSeparationDistance && vert->y <= p2Y + maxSeparationDistance &&
+					vert->z >= p2Z - maxSeparationDistance && vert->z <= p2Z + maxSeparationDistance) {
+					matches[1] = side;
+					++numMatches;
+				}
+
+				if (vert->x >= p3X - maxSeparationDistance && vert->x <= p3X + maxSeparationDistance &&
+					vert->y >= p3Y - maxSeparationDistance && vert->y <= p3Y + maxSeparationDistance &&
+					vert->z >= p3Z - maxSeparationDistance && vert->z <= p3Z + maxSeparationDistance) {
+					matches[2] = side;
+					++numMatches;
+				}
+			}
+
+			if (numMatches == 3) {
+				// Found!
+				triCache->faceIndex = f;
+				triCache->vert1Index = matches[0];
+				triCache->vert2Index = matches[1];
+				triCache->vert3Index = matches[2];
+				isTriangleMatched[i] = true;
+				break;
+			}
+		}
+
+		// If that didn't work
+		if (!isTriangleMatched[i]) {
+			// Into the unlinked triangles you go!
+			collisionCache.unlinkedCaches[collisionCache.numUnlinkedTriangles++] = *triCache;
+
+			// Delete this one from the sector cache list
+			--collisionCache.sectorCaches[sectorIndex].numTriangles;
+			for (int j = i; j < collisionCache.sectorCaches[sectorIndex].numTriangles; ++j) {
+				collisionCache.sectorCaches[sectorIndex].triangles[j] = collisionCache.sectorCaches[sectorIndex].triangles[j + 1];
+			}
+
+			--i;
+
+			// Throw the triangle into nowhere
+			tri->xCoords = 0;
+			tri->yCoords = 0;
+			// not touching Z because of those weird flags
+			continue;
+		}
+	}
+
+	free(isTriangleMatched);
+}
+
+void ResetCollisionLinks() {
+	// Reset collision caches
+	for (int i = 0; i < 256; i++)
+		collisionCache.sectorCaches[i].numTriangles = 0;
+	collisionCache.numUnlinkedTriangles = 0;
 }
 
 void RebuildCollisionTriangles() {

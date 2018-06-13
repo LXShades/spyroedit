@@ -180,7 +180,7 @@ class GenInst : public GenObject {
 		inline genid GetMaterial() const;
 		
 		inline void SetMesh(genid meshId);
-		inline genid GetMesh() const;
+		inline GenMesh* GetMesh() const;
 		
 		using GenObject::GetState;
 		int SetState(const GenSubstate* state);
@@ -189,7 +189,6 @@ class GenInst : public GenObject {
 	private:
 		genid model;
 		genid material;
-		genid mesh;
 		genwchar name[256];
 
 		GenTransform transform;
@@ -545,30 +544,27 @@ inline const GenProp* GenMod::GetProperty(const char* propTag) {
 
 inline void GenMod::SetProperty(const char* propTag, const GenValueSet& value) {
 	// Try to find the property if it exists
-	GenProp* existingProp = nullptr;
+	for (int index = 0, e = props.GetNum(); index < e; ++index) {
+		if (!strcmp(props[index]->name, propTag)) {
+			// Replace existing prop
+			if (value.GetSize() > props[index]->value.GetSize()) {
+				// Replace old prop with a bigger one
+				delete props[index];
 
-	for (GenProp* prop : props) {
-		if (!strcmp(prop->name, propTag)) {
-			existingProp = prop;
-			break;
+				props[index] = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues));
+				new (props[index]) GenProp(propTag, value);
+			} else {
+				// Just copy the value (Todo: Shrink when necessary)
+				props[index]->value.Copy(value);
+			}
 		}
 	}
 
-	if (existingProp) {
-		if (value.GetSize() > existingProp->value.GetSize()) {
-			// Delete the old prop and make a new one
-			delete existingProp;
+	// Otherwise add a new one
+	GenProp* newProp = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues));
+	new (newProp) GenProp(propTag, value);
 
-			// Ow my eyes!
-			new (existingProp = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues))) GenProp(propTag, value);
-		} else {
-			// Just copy the value (Todo: Shrink when necessary)
-			existingProp->value.Copy(value);
-		}
-	} else {
-		// Create a new prop and append it to this instance's prop list. Behold the worst new statement you've ever burned your eyes on!
-		new (props.Append() = (GenProp*)operator new (GenProp::GetSize(value.type, value.numValues))) GenProp(propTag, value);
-	}
+	props.Append() = newProp;
 }
 
 inline void GenInst::Create() {
@@ -624,8 +620,12 @@ inline genid GenInst::GetMaterial() const {
 	return material;
 }
 
-inline void GenInst::SetMesh(genid meshId) {
-	mesh = meshId;
+inline GenMesh* GenInst::GetMesh() const {
+	if (GenModel* model = scene->GetModelById(this->model)) {
+		return model->GetMesh();
+	} else {
+		return nullptr;
+	}
 }
 
 inline void* GenMesh::LockElements(GenMeshElementType type) {

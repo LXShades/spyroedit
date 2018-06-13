@@ -7,9 +7,12 @@
 
 Scene scene;
 
-extern bool colltreeInvalid;
+extern bool isColltreeValid;
 
 uint32 FindFreeMemory(int sectorSize);
+
+void SetupCollisionLinks(int minSectorIndex = 0, int maxSectorIndex = -1);
+void UpdateCollisionLinks(int sectorId);
 
 void Scene::OnLevelEntry() {
 	// Initialise GenSectors and validate all
@@ -175,8 +178,8 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 		return;
 	}
 
-	GenMod* genMod = genScene->GetModById(GENID_SCENESECTORMOD + sectorId);
-	GenMesh* genSector = genMod ? genMod->GetMesh() : nullptr;
+	GenInst* genInst = genScene->GetInstById(GENID_SCENESECTORINSTANCE + sectorId);
+	GenMesh* genSector = genInst ? genInst->GetMesh() : nullptr;
 
 	if (!genSector)
 		return;
@@ -185,7 +188,7 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	bool flatSector = ((sector->centreRadiusAndFlags >> 12) & 1);
 	int oldNumVerts = sector->numHpVertices, oldNumFaces = sector->numHpFaces;
 	int numVerts = genSector->GetNumVerts(), numFaces = genSector->GetNumFaces(), numColours = genSector->GetNumColours();
-
+	
 	// Cap number of elements
 	if (numVerts > 0xFF) numVerts = 0xFF;
 	if (numFaces > 0xFF) numFaces = 0xFF;
@@ -194,7 +197,14 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	// Resize the sector if necessary
 	if (sector->numHpVertices != numVerts || sector->numHpFaces != numFaces || sector->numHpColours != numColours) {
 		SceneSectorHeader newHead = *sector;
-	
+
+		// Hack for the video: hide the sector
+		if (!sector->numHpFaces) {
+			newHead.centreZ = 0xFFFF;
+			newHead.centreX = newHead.centreY = 0;
+			newHead.centreRadiusAndFlags = 0;
+		}
+
 		newHead.numHpVertices = numVerts;
 		newHead.numHpFaces = numFaces;
 		newHead.numHpColours = numColours;
@@ -240,14 +250,11 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 
 	int32 minX = INT_MAX, minY = INT_MAX, minZ = INT_MAX;
 	int32 maxX = INT_MIN, maxY = INT_MIN, maxZ = INT_MIN;
+	bool lpVertexHasMoved[256] = {false};
 	for (int i = 0; i < numVerts; i++) {
 		uint32 curVertex = sector->data32[hpVertexStart + i];
-		int oldX = ((curVertex >> 19 & 0x1FFC) >> 3), oldY = ((curVertex >> 8 & 0x1FFC) >> 3), oldZ = ((curVertex << 3 & 0x1FFC) >> 3);
+		int oldX = ((curVertex >> 19 & 0x1FFC) >> 2), oldY = ((curVertex >> 8 & 0x1FFC) >> 2), oldZ = ((curVertex << 3 & 0x1FFC) >> 2);
 		int newX = absoluteVerts[i].x, newY = absoluteVerts[i].y, newZ = absoluteVerts[i].z;
-
-		// Before we start: invalidate the collision tree if this vertex moved into a different collision area
-		if (!colltreeInvalid && ((oldX<<1) + sectorX) >> 8 != newX >> 8 || ((oldY<<1) + sectorY) >> 8 != newY >> 8 || ((oldZ<<1) + sectorZ) >> 8 != newZ >> 8)
-			colltreeInvalid = true;
 
 		// Relocate the vertex
 		curVertex = ((newX - sectorX) << 2 & 0x1FFC) << 19;
@@ -263,22 +270,22 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 		sector->data32[hpVertexStart + i] = curVertex;
 
 		// Find a matching LP vertex and move it too
-		int closestLpVert = 0;
-		int closestLpDist = 9999;
+		int closestLpVert = 0, closestLpDist = 10000;
 		for (int j = 0; j < sector->numLpVertices; j++) {
-			int lpX = (sector->data32[j] >> 19 & 0x1FFC) >> 3, lpY = ((sector->data32[j] >> 8 & 0x1FFC) >> 3), lpZ = ((sector->data32[j] << 3 & 0x1FFC) >> 3);
+			int lpX = (sector->data32[j] >> 19 & 0x1FFC) >> 2, lpY = ((sector->data32[j] >> 8 & 0x1FFC) >> 2), lpZ = ((sector->data32[j] << 3 & 0x1FFC) >> 2);
 			int xDist = lpX - oldX, yDist = lpY - oldY, zDist = lpZ - oldZ;
 			int dist = xDist * xDist + yDist * yDist + zDist * zDist;
 
-			if (dist > closestLpDist)
-				continue;
-
-			closestLpDist = dist;
-			closestLpVert = j;
+			if (dist <= closestLpDist && !lpVertexHasMoved[j]) {
+				closestLpDist = dist;
+				closestLpVert = j;
+			}
 		}
 
-		if (closestLpDist <= 4*4*4)
+		if (closestLpDist <= 4*4*4) {
 			sector->data32[closestLpVert] = curVertex;
+			lpVertexHasMoved[closestLpVert] = true;
+		}
 
 		// Update vert coordinate boundaries
 		if (newX < minX) minX = newX;
@@ -287,6 +294,29 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 		if (newX > maxX) maxX = newX;
 		if (newY > maxY) maxY = newY;
 		if (newZ > maxZ) maxZ = newZ;
+	}
+
+	// Adjust unmoved LP vertices if the sector offset has changed
+	if (newSectorX != oldSectorX || newSectorY != oldSectorY || newSectorZ != oldSectorZ) {
+		for (int i = 0; i < sector->numLpVertices; ++i) {
+			if (!lpVertexHasMoved[i]) {
+				uint32 curVertex = sector->data32[i];
+				int absX = ((curVertex >> 19 & 0x1FFC) >> 2) + oldSectorX, absY = ((curVertex >> 8 & 0x1FFC) >> 2) + oldSectorY, absZ = ((curVertex << 3 & 0x1FFC) >> 2) + oldSectorZ;
+
+				// Relocate the vertex
+				curVertex = ((absX - sectorX) << 2 & 0x1FFC) << 19;
+				curVertex |= ((absY - sectorY) << 2 & 0x1FFC) << 8;
+
+				if (!flatSector && game != SPYRO1)
+					curVertex |= ((absZ - sectorZ) << 2 & 0x1FFC) >> 3;
+				else if (!flatSector && game == SPYRO1)
+					curVertex |= ((absZ - sectorZ) << 2 & 0x1FFC) >> 2;
+				else if (flatSector)
+					curVertex |= ((absZ - sectorZ) << 5 & 0x1FFC) >> 3;
+
+				sector->data32[i] = curVertex;
+			}
+		}
 	}
 
 	// Update the sector's centre info based on the boundaries measured
@@ -428,6 +458,11 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 	curFaceId += sector->numHpFaces; // delete this line?
 
 	// UPDATE COLLISION TRIANGLES ********
+	// Regenerate triangle sector links if the number of faces has changed...
+	if (oldNumFaces != numFaces) {
+		UpdateCollisionLinks(sectorId);
+	}
+
 	CollTri* triangles = spyroCollision.triangles;
 	uint16* triangleTypes = spyroCollision.surfaceType;
 	int numTriangles = spyroCollision.numTriangles;
@@ -456,7 +491,6 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 
 			if (triangleTypes) {
 				triangleTypes[stealMe->triangleIndex] = 0;
-				stealMe->triangleType = 0;
 			}
 
 			// Attach it to this face
@@ -518,6 +552,7 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 
 	// Refresh collision tree if polygons were moved out of their original block
 	if (doRefreshColltree) {
+		isColltreeValid = false;
 		RebuildCollisionTree();
 	}
 
@@ -527,8 +562,8 @@ void Scene::ConvertGenToSpyro(int sectorId) {
 
 GenMesh* Scene::GetGenSector(int sectorIndex) {
 	if (genScene) {
-		if (GenMod* mod = genScene->GetModById(GENID_SCENESECTORMOD + sectorIndex)) {
-			if (GenMesh* mesh = mod->GetMesh()) {
+		if (GenModel* model = genScene->GetModelById(GENID_SCENESECTORMODEL + sectorIndex)) {
+			if (GenMesh* mesh = model->GetMesh()) {
 				return mesh;
 			}
 		}
@@ -606,46 +641,35 @@ SceneSectorHeader* Scene::ResizeSector(int sectorId, const SceneSectorHeader& ne
 	}
 	
 	// Backup the old header and data for reshuffle
-	memcpy(backupSector, &header, header->GetSize());
+	memcpy(backupSector, header, header->GetSize());
 
 	// Copy the new header
 	memcpy((SceneSectorHeader*) header, &newHeader, 7 * 4);
+	header->hpUnknown = header->numLpColours + header->numLpVertices + header->numLpFaces * 2;
 	header->zTerminator = 0xFFFFFFFF;
 
-	// Shuffle verts, faces etc
-	uint32* basicUintShuffle[] = {backupSector->GetLpVertices(), header->GetLpVertices(), backupSector->GetLpColours(), header->GetLpColours(), 
-								  backupSector->GetHpVertices(), header->GetHpVertices(), backupSector->GetHpColours(), header->GetHpColours()};
-	int shuffleCount[] = {backupSector->numLpVertices, header->numLpVertices, backupSector->numLpColours, header->numLpColours, 
-						  backupSector->numHpVertices, header->numHpVertices, backupSector->numHpColours, header->numHpColours};
+	// Copy all data over into the appropriate sections
+	struct SectorPart {
+		void* source;
+		void* destination;
+		uint32 sourceNumWords;
+		uint32 destNumWords;
+	};
 
-	for (int j = 0; j < sizeof (basicUintShuffle) / sizeof (basicUintShuffle[0]) / 2; j++) {
-		uint32* oldUints = basicUintShuffle[j * 2], *newUints = basicUintShuffle[j * 2 + 1];
-		int oldCount = shuffleCount[j * 2], newCount = shuffleCount[j * 2 + 1];
-		for (int i = 0; i < newCount; i++) {
-			if (i < oldCount)
-				newUints[i] = oldUints[i];
-			else
-				newUints[i] = 0;
-		}
-	}
+	SectorPart copyParts[] = {
+		backupSector->GetHpFaces(), header->GetHpFaces(), backupSector->numHpFaces * 4, header->numHpFaces * 4, 
+		backupSector->GetHpVertices(), header->GetHpVertices(), backupSector->numHpVertices, header->numHpVertices,
+		backupSector->GetHpColours(), header->GetHpColours(), backupSector->numHpColours * 2, header->numHpColours * 2,
+		backupSector->GetLpVertices(), header->GetLpVertices(), backupSector->numLpVertices, header->numLpVertices,
+		backupSector->GetLpColours(), header->GetLpColours(), backupSector->numLpColours, header->numLpColours,
+		backupSector->GetLpFaces(), header->GetLpFaces(), backupSector->numLpFaces * 2, header->numLpFaces * 2};
 
-	uint32* oldLpFaces = backupSector->GetLpFaces(), *newLpFaces = header->GetLpFaces();
-	for (int i = 0; i < header->numLpFaces * 2; i++) {
-		if (i < backupSector->numLpFaces * 2)
-			newLpFaces[i] = oldLpFaces[i];
-		else
-			newLpFaces[i] = 0;
-	}
-
-	SceneFace* oldHpFaces = backupSector->GetHpFaces(), *newHpFaces = header->GetHpFaces();
-	for (int i = 0; i < header->numHpFaces; i++) {
-		if (i < backupSector->numHpFaces) {
-			newHpFaces[i] = oldHpFaces[i];
+	for (SectorPart& part : copyParts) {
+		if (part.destNumWords < part.sourceNumWords) {
+			memcpy(part.destination, part.source, part.destNumWords * 4);
 		} else {
-			newHpFaces[i].word1 = 0;
-			newHpFaces[i].word2 = 0;
-			newHpFaces[i].word3 = 0;
-			newHpFaces[i].word4 = 0;
+			memcpy(part.destination, part.source, part.sourceNumWords * 4);
+			memset((void*)((uintptr)part.destination + part.sourceNumWords * 4), 0, (part.destNumWords - part.sourceNumWords) * 4);
 		}
 	}
 
@@ -660,20 +684,14 @@ SceneSectorHeader* Scene::ResizeSector(int sectorId, const SceneSectorHeader& ne
 void Scene::UploadToGen() {
 	// Send each sector as a GenState. Includes an instance, model and edit modifier
 	for (int i = 0; i < spyroScene->numSectors; i++) {
-		GenState meshState(0xFFFFFFFF, GENCOMMON_MULTIPLE);
 		GenState combinedState(0, GENCOMMON_MULTIPLE);
 		
 		// Obtain states for instance, modifier and model from the global scene
+		GenModel* genModel = genScene->GetModelById(GENID_SCENESECTORMODEL + i);
 		GenState instState = genScene->GetState(GENID_SCENESECTORINSTANCE + i, GENCOMMON_MULTIPLE);
-		GenState modState = genScene->GetState(GENID_SCENESECTORMOD + i, GENCOMMON_MULTIPLE);
 		GenState modelState = genScene->GetState(GENID_SCENESECTORMODEL + i, GENCOMMON_MULTIPLE);
-
-		// Modifiers erm.... set the mesh states so that they have the, uh... same state as...what?
-		if (GenMod* mod = genScene->GetModById(GENID_SCENESECTORMOD + i)) {
-			meshState.SetInfo(mod->GetMeshId(), GENCOMMON_MULTIPLE);
-
-			genScene->GetState(&meshState);
-		}
+		GenState modState = genModel ? genScene->GetState(genModel->GetModifier(genModel->GetNumModifiers() - 1), GENCOMMON_MULTIPLE) : GenState();
+		GenState meshState = genModel ? genScene->GetState(genModel->GetMeshId(), GENCOMMON_MULTIPLE) : GenState();
 
 		GenState* stateList[] = {&instState, &modState, &modelState, &meshState};
 
