@@ -35,7 +35,7 @@ struct GenValueSet {
 	static const int headerSize;
 
 	// Constructors
-	GenValueSet() {};
+	GenValueSet() {return;}  // Hack: Override default construction so that GenValueSet is not zero-initialised
 	GenValueSet(const GenValueSet& other) {memcpy(this, &other, other.GetSize());}
 	GenValueSet(gens32 _iValue) : type(GENTYPE_S32), s32{_iValue}, numValues(1) {};
 	GenValueSet(genf32 _fValue) : type(GENTYPE_F32), f32{_fValue}, numValues(1) {};
@@ -155,7 +155,7 @@ struct GenProp {
 	GenValueSet value; // value of the property
 
 	// Constructors
-	inline GenProp() = default;
+	inline GenProp() {return;}; // Hack: Override default construction so that GenProp is not zero-initialised
 	inline GenProp(const char* name, const struct GenValueSet& value);
 
 	// Setters
