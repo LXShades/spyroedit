@@ -167,17 +167,19 @@ struct Moby { // Moby size: 0x58
 			SpyroPointer<Moby>* nextItemInChain;
 			nextItemInChain = (SpyroPointer<Moby>*)&mobyCollisionRegions[oldCollisionRegion];
 
-			while (*nextItemInChain != this) {
+			while (nextItemInChain->address && *nextItemInChain != this) {
 				nextItemInChain = (SpyroPointer<Moby>*)&(*nextItemInChain)->nextCollisionChain;
 			}
 
-			*nextItemInChain = this->nextCollisionChain;
+			if (nextItemInChain->address) {
+				*nextItemInChain = this->nextCollisionChain;
 
-			// Add this object to the new collision chain
-			this->nextCollisionChain = mobyCollisionRegions[newCollisionRegion];
-			mobyCollisionRegions[newCollisionRegion] = this;
-
-			this->collisionRegion = newCollisionRegion;
+				// Add this object to the new collision chain
+				this->nextCollisionChain = mobyCollisionRegions[newCollisionRegion];
+				mobyCollisionRegions[newCollisionRegion] = this;
+	
+				this->collisionRegion = newCollisionRegion;
+			}
 		}
 
 		if (newX != x || newY != y || newZ != z) {
