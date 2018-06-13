@@ -91,7 +91,7 @@ Firstly, if you're reading this, you're most likely here exclusively to use it w
 **G:** Lock/unlock gizmo (selections will take precedence)  
 
 ## General editing ##
-**Backspace:** Soft delete element (element is destroyed, but associated elements are preserved and re-linked if possible)
+**Backspace:** Soft delete element (element is destroyed, but associated elements are preserved and re-linked if possible)  
 **Del:** Hard delete element (element and associated elements are destroyed)  
-**Ctrl+Z:** Undo and pray it doesn't crash
-**Ctrl+Y:** Redo and pray it doesn't crash
+**Ctrl+Z:** Undo and pray it doesn't crash  
+**Ctrl+Y:** Redo and pray it doesn't crash  

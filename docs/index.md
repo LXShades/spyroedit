@@ -4,10 +4,10 @@ SpyroEdit is a specialised emulator plugin for modifying the Spyro the Dragon ga
 Officially compatible with Spyro 2 and 3, with limited compatibilty for Spyro 1.  
 
 # Screenshots
-[!(screen1.png)](screen1.png)
-[!(screen2.png)](screen2.png)
-[!(screen3.png)](screen3.png)
-[!(screen4.png)](screen4.png)
+<img src="screen1.png" alt="SpyroEdit screenshot 1" width="250px"/>
+<img src="screen2.png" alt="SpyroEdit screenshot 2" width="250px"/>
+<img src="screen3.png" alt="SpyroEdit screenshot 3" width="250px"/>
+<img src="screen4.png" alt="SpyroEdit screenshot 4" width="250px"/>
 
 # Videos
 [![SpyroEdit preview video](http://img.youtube.com/vi/xi-6TCptTOo/0.jpg)](https://www.youtube.com/watch?v=xi-6TCptTOo)
