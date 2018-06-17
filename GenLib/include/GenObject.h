@@ -216,6 +216,7 @@ enum GenModifierType : genu16 {
 	MOD_BASEBONE,
 	MOD_SKIN,
 	MOD_SPYROEDIT,
+	MOD_SPYROMOBY,
 
 	NUMMODTYPES,
 	MOD_INVALID = 0xFFFF // This monster exists due to the magic of errors and error return values

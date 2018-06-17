@@ -1,4 +1,5 @@
 #pragma once
+#include "GenObject.h"
 
 #define GENID_SCENESECTORMODEL 1000
 #define GENID_SCENESECTORMOD 1256
@@ -21,3 +22,5 @@
 
 #define MOBYPOSITIONSCALE 0.000625f
 #define MOBYSPHERESIZE 0.15f
+
+extern GenScene genScene;
