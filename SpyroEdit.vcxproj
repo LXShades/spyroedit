@@ -129,7 +129,8 @@
     <ClCompile Include="Source\SpyroTextures.cpp" />
     <ClCompile Include="Source\Vram.cpp" />
     <ClCompile Include="Source\Window.cpp" />
-    <ClCompile Include="SpyroMobyModel.cpp" />
+    <ClCompile Include="Source\SpyroMobyModel.cpp" />
+    <ClCompile Include="Source\SpyroMobys.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
