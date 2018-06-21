@@ -12,6 +12,8 @@ struct GPUSnapshot {
 // VRAM manage class to make everything supa-EZ
 class Vram {
 public:
+	Vram() : isValidIn(false), isValidOut(true) {}
+
 	// Gets a VRAM snapshot and returns a pointer to it
 	uint8* GetVram8();
 	uint16* GetVram16();

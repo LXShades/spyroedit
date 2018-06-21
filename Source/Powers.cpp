@@ -145,7 +145,7 @@ void UpdatePowers() {
 				moby->state = 0;
 				//moby->_unknown[0] = 0;
 				//moby->_unknown[1] = 0;
-				moby->animSpeed = 0x30;
+				moby->animProgress = 0x10;
 				moby->animRun = 0xFF;
 
 				uintmem[0x00000000/4] = moby->x;

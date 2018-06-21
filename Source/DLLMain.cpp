@@ -62,16 +62,14 @@ unsigned __int32 ulStatusControl[256];
 
 DLLFUNCTION void __stdcall GPUwriteDataMem(unsigned long* mem, int size);
 
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
+BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 	if (fdwReason == DLL_THREAD_ATTACH || fdwReason == DLL_THREAD_DETACH)
 		return TRUE;
 
 	if (mainModule == NULL)
 		mainModule = (HMODULE) hinstDLL;
 
-	if (fdwReason == DLL_PROCESS_DETACH)// || fdwReason == DLL_THREAD_DETACH)
-	{
+	if (fdwReason == DLL_PROCESS_DETACH /* || fdwReason == DLL_THREAD_DETACH)*/) {
 		if (route_GPU_module == NULL)
 			return FALSE;
 
@@ -84,8 +82,9 @@ BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	return TRUE;
 }
 
-DLLFUNCTION long __stdcall GPUinit(void)
-{
+DLLFUNCTION long __stdcall GPUinit(void) {
+	LoadRouteGPU();
+
 	Startup();
 
 	memset(ulStatusControl, 0, sizeof (ulStatusControl));
@@ -105,10 +104,8 @@ DLLFUNCTION long __stdcall GPUshutdown(void) {
 		return 0;
 }
 
-DLLFUNCTION long __stdcall GPUopen(HWND hwndGPU)
-{
-	if (!route_GPU_module)
-		LoadRouteGPU();
+DLLFUNCTION long __stdcall GPUopen(HWND hwndGPU) {
+	LoadRouteGPU();
 
 	Open_Windows();
 
@@ -117,15 +114,13 @@ DLLFUNCTION long __stdcall GPUopen(HWND hwndGPU)
 	return route_GPUopen(hwndGPU);
 }
 
-DLLFUNCTION long __stdcall GPUclose(void)
-{
+DLLFUNCTION long __stdcall GPUclose(void) {
 	Close_Windows();
 
 	return route_GPUclose();
 }
 
-DLLFUNCTION long __stdcall GPUdmaChain(unsigned long* baseAddrL, unsigned long addr)
-{
+DLLFUNCTION long __stdcall GPUdmaChain(unsigned long* baseAddrL, unsigned long addr) {
 	memory = (void*) baseAddrL; // Set the PlayStation memory pointer
 	umem8 = (uint8*) baseAddrL;
 	umem16 = (uint16*) baseAddrL;
@@ -136,8 +131,7 @@ DLLFUNCTION long __stdcall GPUdmaChain(unsigned long* baseAddrL, unsigned long a
 
 
 DLLFUNCTION void __stdcall GPUwriteStatus(unsigned long gdata);
-DLLFUNCTION void __stdcall GPUupdateLace(void)
-{
+DLLFUNCTION void __stdcall GPUupdateLace(void) {
 	static char c = 0;
 
 	c ++; if (c > 1) c = 0;
@@ -148,54 +142,46 @@ DLLFUNCTION void __stdcall GPUupdateLace(void)
 	route_GPUupdateLace();
 }
 
-DLLFUNCTION void __stdcall GPUclearDynarec(void (__stdcall* callback_function)())
-{
+DLLFUNCTION void __stdcall GPUclearDynarec(void (__stdcall* callback_function)()) {
 	Reset_Recompiler = callback_function;
 
 	if (route_GPUclearDynarec != NULL)
 		route_GPUclearDynarec(callback_function);
 }
 
-DLLFUNCTION void __stdcall GPUsetMode(unsigned long gdata)
-{
+DLLFUNCTION void __stdcall GPUsetMode(unsigned long gdata) {
 	if (route_GPUsetMode != NULL)
 		route_GPUsetMode(gdata);
 }
-DLLFUNCTION long __stdcall GPUgetMode()
-{
+
+DLLFUNCTION long __stdcall GPUgetMode() {
 	if (route_GPUgetMode != NULL)
 		return route_GPUgetMode();
 
 	return 0;
 }
 
-DLLFUNCTION unsigned long __stdcall GPUreadData(void)
-{
+DLLFUNCTION unsigned long __stdcall GPUreadData(void) {
 	return route_GPUreadData();
 }
 
-DLLFUNCTION void __stdcall GPUreadDataMem(unsigned long* route_argone, int route_argtwo)
-{
+DLLFUNCTION void __stdcall GPUreadDataMem(unsigned long* route_argone, int route_argtwo) {
 	route_GPUreadDataMem(route_argone, route_argtwo);
 }
 
-DLLFUNCTION unsigned long __stdcall GPUreadStatus(void)
-{
+DLLFUNCTION unsigned long __stdcall GPUreadStatus(void) {
 	return route_GPUreadStatus();
 }
 
-DLLFUNCTION void __stdcall GPUwriteData(unsigned long route_argument)
-{
+DLLFUNCTION void __stdcall GPUwriteData(unsigned long route_argument) {
 	route_GPUwriteData(route_argument);
 }
 
-DLLFUNCTION void __stdcall GPUwriteDataMem(unsigned long* mem, int size)
-{
+DLLFUNCTION void __stdcall GPUwriteDataMem(unsigned long* mem, int size) {
 	route_GPUwriteDataMem(mem, size);
 }
 
-DLLFUNCTION void __stdcall GPUwriteStatus(unsigned long gdata)
-{
+DLLFUNCTION void __stdcall GPUwriteStatus(unsigned long gdata) {
 	unsigned long lCommand=(gdata>>24)&0xff;
 
 	// LX: Store for savestates
@@ -205,8 +191,7 @@ DLLFUNCTION void __stdcall GPUwriteStatus(unsigned long gdata)
 }
 
 // Extra functions
-void GetSnapshot(GPUSnapshot* out)
-{
+void GetSnapshot(GPUSnapshot* out) {
 	GPUFreeze_t* tempFreeze = (GPUFreeze_t*) malloc(sizeof (GPUFreeze_t));
 	tempFreeze->ulFreezeVersion = 1;
 
@@ -219,8 +204,7 @@ void GetSnapshot(GPUSnapshot* out)
 	free(tempFreeze);
 }
 
-void SetSnapshot(const GPUSnapshot* in)
-{
+void SetSnapshot(const GPUSnapshot* in) {
 	GPUFreeze_t* tempFreeze = (GPUFreeze_t*) malloc(sizeof (GPUFreeze_t));
 	tempFreeze->ulFreezeVersion = 1;
 
@@ -322,6 +306,10 @@ DLLFUNCTION unsigned long __stdcall PSEgetLibType() {return 2;}
 DLLFUNCTION unsigned long __stdcall PSEgetLibVersion() {return (RELEASE << 16) | (VERSION << 8) | SUBVERSION;}
 
 void LoadRouteGPU() {
+	if (route_GPU_module) {
+		return; // GPU already loaded
+	}
+
 	route_GPU_module = LoadLibrary(".\\plugins\\SPYRO3GPU.dll");
 
 	if (route_GPU_module == NULL) {
@@ -358,6 +346,5 @@ void LoadRouteGPU() {
 
 	route_GPUinit();
 }
-
 
 }

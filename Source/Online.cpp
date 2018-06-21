@@ -319,7 +319,7 @@ void ReceiveMessages() {
 				mobys[msg->mobyId].z = msg->moby.z;
 				mobys[msg->mobyId].anim = msg->moby.anim;
 				mobys[msg->mobyId].angle = msg->moby.angle;
-				mobys[msg->mobyId].animSpeed = msg->moby.animSpeed;
+				mobys[msg->mobyId].animProgress = msg->moby.animProgress;
 				mobys[msg->mobyId].animRun = msg->moby.animRun;
 				mobys[msg->mobyId].state = 50;msg->moby.state;
 

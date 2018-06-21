@@ -125,7 +125,6 @@ void SpyroLoop() {
 			break;
 	}
 
-	spyroCollision.CopyToGame();
 	vram.PostFrameUpdate();
 
 	// Check level and gamestate changes

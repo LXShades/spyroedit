@@ -421,7 +421,7 @@ void WinLoop() {
 		TranslateMessage (&message);
 		DispatchMessage  (&message);
 	}
-	
+
 	// Main update
 	MainLoop();
 

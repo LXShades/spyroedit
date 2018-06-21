@@ -12,8 +12,8 @@ void UpdateSpyroDestroyer() {
 	SpyroFrameInfo* frame = &anim->frames[spyro->anim.nextFrame];
 
 	uint32* spyroVerts = anim->verts, *spyroFaces = anim->faces, *spyroColours = anim->colours;
-	uint16* blocks = &anim->data[frame->dataOffset / 2];
-	uint8* adjusts = &((uint8*)anim->data)[frame->dataOffset + ((frame->word1 >> 10) & 0x3FF)];
+	uint16* blocks = &anim->data[frame->blockOffset / 2];
+	uint8* adjusts = &((uint8*)anim->data)[frame->blockOffset + ((frame->word1 >> 10) & 0x3FF)];
 	IntVector vertPositions[80] = {0};
 	IntVector _initialVertPositions[80] = {0};
 	IntVector* initialVertPositions = &_initialVertPositions[1];
