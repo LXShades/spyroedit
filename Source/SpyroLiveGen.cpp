@@ -72,8 +72,6 @@ void MakeIceWall(int, int, int);
 extern uint32 mobyVertAdjustTable[127];
 
 void UpdateLiveGen() {
-	//if (((jokerPressed & BUT_L2) || (jokerPressed & BUT_R2)) && (joker & (BUT_L2 | BUT_R2)) == (BUT_L2 | BUT_R2))
-	//	MakeIceWall(spyro->x, spyro->y, spyro->z);
 	UpdateFlaggedMemory();
 
 	if (!isColltreeValid) {

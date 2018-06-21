@@ -135,7 +135,7 @@ struct Moby { // Moby size: 0x58
 
 	Animation anim; //0x3C
 
-	int8 animSpeed;   // 0x40
+	int8 animProgress;   // 0x40
 	int8 _unknown[2]; // 0x41
 	int8 animRun;     // 0x43
 
