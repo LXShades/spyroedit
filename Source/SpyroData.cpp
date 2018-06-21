@@ -79,6 +79,7 @@ int playingFrame = 0;
 void UpdateLiveGen();
 void LiveGenOnLevelEntry();
 void SpyroOnLevelEntry();
+void UpdateSpyroDestroyer();
 #include <utility>
 
 void SpyroLoop() {
@@ -116,6 +117,7 @@ void SpyroLoop() {
 			break;
 		case SPYRO2:
 		case SPYRO3:
+			//UpdateSpyroDestroyer();
 			NetworkLoop();
 			MultiplayerLoop();
 			UpdatePowers();

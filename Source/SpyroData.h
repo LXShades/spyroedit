@@ -155,7 +155,7 @@ struct Moby { // Moby size: 0x58
 	int8 levelSectorIndex; // 0x52
 	int8 _unkC; // 0x53
 
-	int8 _unkD[4]; // 0x54
+	uint32 colour; // 0x54
 
 	void SetPosition(int newX, int newY, int newZ) {
 		// Update the collision region
@@ -284,8 +284,8 @@ struct SpyroModelHeader {
 };
 
 struct SpyroFrameInfo {
-	uint32 unk1;
-	uint32 unk2;
+	uint16 blockOffset, unk1;
+	uint32 word1;
 	uint32 headPos; // xxxxxxxxxxxyyyyyyyyyyyzzzzzzzzzz: z = up y = left x = forward
 	uint32 shadowLeft;
 	uint32 shadowRight;
