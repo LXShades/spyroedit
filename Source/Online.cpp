@@ -381,8 +381,8 @@ void Host() {
 	localPlayerId = 0;
 
 	EnableWindow(edit_ip, 0);
-	EnableWindow(button_host, 0);
-	EnableWindow(button_join, 0);
+	EnableWindow(button_host->hwnd, 0);
+	EnableWindow(button_join->hwnd, 0);
 }
 
 extern long (CALLBACK* route_GPUdmaChain)(unsigned long *,unsigned long);
@@ -468,8 +468,8 @@ void Join() {
 	netstate = NETSTATE_CLIENT;
 
 	EnableWindow(edit_ip, 0);
-	EnableWindow(button_host, 0);
-	EnableWindow(button_join, 0);
+	EnableWindow(button_host->hwnd, 0);
+	EnableWindow(button_join->hwnd, 0);
 
 	return;
 	// Receive a save state

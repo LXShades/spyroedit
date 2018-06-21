@@ -16,14 +16,14 @@
 #define LINE(number) (4 + (number * 18))
 
 #define CREATESTATIC(string, x, y) SendMessage( \
-CreateWindowEx(0, "STATIC", string, WS_VISIBLE | WS_CHILD, x, y, 90, 16, object_page, NULL, mainModule, NULL), \
+CreateWindowEx(0, "STATIC", string, WS_VISIBLE | WS_CHILD, x, y, 90, 16, pageObjects.hwnd, NULL, mainModule, NULL), \
 WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 
 #define CREATEANIMCOUNT(x, y) \
 { \
 	CREATESTATIC("Anims:", x, y); \
 	anim_count = \
-		CreateWindowEx(0, "STATIC", "[unknown]", WS_VISIBLE | WS_CHILD, x + 90, y, 200, 16, object_page, NULL, mainModule, NULL); \
+		CreateWindowEx(0, "STATIC", "[unknown]", WS_VISIBLE | WS_CHILD, x + 90, y, 200, 16, pageObjects.hwnd, NULL, mainModule, NULL); \
 	SendMessage(anim_count, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1); \
 }
 
@@ -158,34 +158,34 @@ void CreateObjectPage() {
 
 	CREATEANIMCOUNT(10, LINE(24));
 
-	object_id = CreateWindowEx(0, "EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, 100, LINE(0), 50, 17, object_page, NULL, mainModule, NULL);
+	object_id = CreateWindowEx(0, "EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, 100, LINE(0), 50, 17, pageObjects.hwnd, NULL, mainModule, NULL);
 
-	button_goto = CreateWindowEx(0, "BUTTON", "Goto", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 100, LINE(1), 50, 17, object_page, NULL, mainModule, NULL);
+	button_goto = CreateWindowEx(0, "BUTTON", "Goto", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 100, LINE(1), 50, 17, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	button_get = 
-	CreateWindowEx(0, "BUTTON", "Get values", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, LINE(25), 80, 18, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Get values", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, LINE(25), 80, 18, pageObjects.hwnd, NULL, mainModule, NULL);
 	button_set = 
-	CreateWindowEx(0, "BUTTON", "Set values", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 150, LINE(25), 80, 18, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Set values", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 150, LINE(25), 80, 18, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	button_butterflies = 
-	CreateWindowEx(0, "BUTTON", "Find Nearby Objects", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, LINE(26), 180, 19, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Find Nearby Objects", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, LINE(26), 180, 19, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	button_spawncopy = 
-	CreateWindowEx(0, "BUTTON", "Spawn Copy", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 235, LINE(25), 70, 16, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Spawn Copy", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 235, LINE(25), 70, 16, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	button_next = 
-	CreateWindowEx(0, "BUTTON", "Next Type", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 240, LINE(6) - 9, 70, 16, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Next Type", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 240, LINE(6) - 9, 70, 16, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	button_prev = 
-	CreateWindowEx(0, "BUTTON", "Prev Type", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 240, LINE(6) + 9, 70, 16, object_page, NULL, mainModule, NULL);
+	CreateWindowEx(0, "BUTTON", "Prev Type", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 240, LINE(6) + 9, 70, 16, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	checkbox_autoupdate = 
 	CreateWindowEx(0, "BUTTON", "Auto-Update", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BS_LEFTTEXT, 200, LINE(0), 110, 16,
-		object_page, NULL, mainModule, NULL);
+		pageObjects.hwnd, NULL, mainModule, NULL);
 
 	checkbox_drag = 
 	CreateWindowEx(0, "Button", "Drag with Spyro", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BS_LEFTTEXT, 200, LINE(1), 110, 16, 
-		object_page, NULL, mainModule, NULL);
+		pageObjects.hwnd, NULL, mainModule, NULL);
 
 	SendMessage(object_id, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 	SendMessage(button_goto, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
@@ -457,14 +457,12 @@ void CREATEVAR(char* string, int x, int y, int type, int offset) {
 	new_vardef->type = type;
 	new_vardef->offset = offset;
 
-	new_vardef->edit_hwnd = 
-		CreateWindowEx(0, "EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, x + 90, y, 80, 17, object_page, NULL, mainModule, NULL);
+	new_vardef->edit_hwnd = CreateWindowEx(0, "EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, x + 90, y, 80, 17, pageObjects.hwnd, NULL, mainModule, NULL);
 
 	new_vardef->hex_toggle = CreateWindowEx(0, "BUTTON", "Hex", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 
-											x + 180, y, 50, 17, object_page, (HMENU) 14, mainModule, NULL);
+											x + 180, y, 50, 17, pageObjects.hwnd, (HMENU) 14, mainModule, NULL);
 
-	SendMessage(CreateWindowEx(0, "STATIC", string, WS_CHILD | WS_VISIBLE, x, y, 90, 17, object_page, NULL, mainModule, NULL), 
-				WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
+	SendMessage(CreateWindowEx(0, "STATIC", string, WS_CHILD | WS_VISIBLE, x, y, 90, 17, pageObjects.hwnd, NULL, mainModule, NULL), WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 
 	SendMessage(new_vardef->edit_hwnd, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 	SendMessage(new_vardef->hex_toggle, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);

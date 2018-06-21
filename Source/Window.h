@@ -1,5 +1,49 @@
 #pragma once
 #include <windows.h>
+#include <vector>
+#include "Types.h"
+
+struct CtrlButton {
+	CtrlButton(HWND hwnd_, void (*onClick_)()) : hwnd(hwnd_), onClick(onClick_) {};
+
+	void (*onClick)();
+	HWND hwnd;
+};
+
+struct CtrlTextbox {
+	CtrlTextbox(HWND hwnd_) : hwnd(hwnd_), text(nullptr) {};
+
+	int GetAsInt();
+	const char* GetAsText();
+	void SetText(const char* text);
+
+	HWND hwnd;
+	char* text;
+};
+
+struct SpyroEditPage {
+	SpyroEditPage(const char* name_) : name(name_), line(0), lineHeight(22), lineFlags(0), group(0), groupX(0), groupY(0), isActive(false) {};
+	
+	void AddLine(uint32 pgFlags = 0, uint32 lineHeight = 19);
+	void AddGroup(const char* groupName);
+	HWND AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
+	CtrlButton* AddButton(const char* buttonText, int x, int width, void (*onClick)() = nullptr);
+	CtrlTextbox* AddTextbox(const char* defaultText, int x, int width);
+
+	HWND hwnd;
+	const char* name;
+
+	uint32 line;
+	uint32 lineHeight;
+	uint32 lineFlags;
+	HWND group;
+	uint32 groupX, groupY;
+
+	std::vector<CtrlButton*> buttons;
+	std::vector<CtrlTextbox*> textboxes;
+
+	bool isActive;
+};
 
 extern HMODULE mainModule;
 
@@ -7,8 +51,8 @@ extern HWND hwndEditor;
 extern HWND hwndVram;
 
 extern HWND tab;
-extern HWND object_page;
-extern HWND online_page;
+extern SpyroEditPage pageObjects, pageOnline, pagePowers, pageScene, pageGenesis, pageStatus;
+extern SpyroEditPage* pages[];
 
 // Textures
 extern HWND checkbox_autoLoad;
@@ -26,8 +70,7 @@ extern HWND anim_count;
 
 // Online page
 extern HWND edit_ip;
-extern HWND button_host;
-extern HWND button_join;
+extern CtrlButton* button_join, *button_host;
 extern HWND staticTransferStatus;
 
 // Genesis page

@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cmath>
 #include <commctrl.h>
+#include <vector>
 
 HMODULE mainModule;
 
@@ -24,17 +25,15 @@ int textureHighlightedTex = -1;
 int textureHighlightedPalette = -1;
 int textureHighlightedTile = 0;
 
-// Pages
+// Buttons and boxes
 HWND tab;
-HWND object_page, online_page, powers_page, scene_page, genesis_page, status_page;
-HWND* pageList[] = {&object_page, &online_page, &powers_page, &scene_page, &genesis_page, &status_page};
-char* pageNameList[] = {"Objects", "MultiSpyro", "Powers", "Scene", "Genesis", "Status"};
+SpyroEditPage pageObjects("Objects"), pageOnline("Online"), pagePowers("Powers"), pageScene("Mods"), pageGenesis("Genesis"), pageStatus("Status");
+SpyroEditPage* pages[] = {&pageScene, &pagePowers, &pageObjects, &pageGenesis, &pageOnline, &pageStatus};
 
-enum SpyroEditPages {
-	PAGE_OBJECT = 0, PAGE_ONLINE, PAGE_POWERS, PAGE_TEXTURES, PAGE_GENESIS, PAGE_STATUS
+enum SpyroEditPageTypes {
+	PAGE_TEXTURES = 0, PAGE_POWERS, PAGE_OBJECTS, PAGE_GENESIS, PAGE_ONLINE, PAGE_STATUS, PAGE_NUMPAGES
 };
-
-const int numPages = sizeof (pageList) / sizeof (pageList[0]);
+const int numPages = PAGE_NUMPAGES;
 
 // Object page
 HWND object_id;
@@ -49,8 +48,7 @@ HWND anim_count;
 
 // Online page
 HWND edit_ip;
-HWND button_host, button_join;
-HWND button_magic;
+CtrlButton* button_host, *button_join;
 HWND staticTransferStatus;
 
 // Powers page
@@ -59,17 +57,14 @@ int numPowers = 0;
 
 // Textures page
 HWND button_editTextures;
-HWND button_saveTextures, button_loadTextures, button_saveMobyTextures, button_loadMobyTextures, button_saveSky, button_loadSky, button_saveColours, button_loadColours, button_saveAll, button_loadAll;
+HWND button_saveAll, button_loadAll;
 HWND button_setColours, button_getColours, button_tweakSky;
 HWND button_makeLight, button_makeFog, button_makeSky;
-HWND button_epicPinkMode, button_colorBGone, button_creepyPasta, button_indieMode;
 HWND checkbox_texSeparate, checkbox_texGenPalettes, checkbox_texShufflePalettes, checkbox_texAutoLq, checkbox_autoLoad;
-HWND edit_fogR, edit_fogG, edit_fogB, edit_lightR, edit_lightG, edit_lightB, edit_skyR, edit_skyG, edit_skyB;
+CtrlTextbox* edit_fogR, *edit_fogG, *edit_fogB, *edit_lightR, *edit_lightG, *edit_lightB, *edit_skyR, *edit_skyG, *edit_skyB;
 
 // Genesis page
-HWND edit_genIp, button_genConnect;
-HWND button_genSendScene, button_genSendCollision, button_genSendSpyro, button_genSendMobyModel, button_genSendAllObjects;
-HWND button_genRebuildColltree, button_genRebuildColltris, button_genResetScene;
+HWND edit_genIp;
 HWND checkbox_genDisableSceneOccl, checkbox_genDisableSkyOccl;
 HWND static_genSceneStatus, static_genCollisionStatus;
 HWND edit_coordsInX, edit_coordsInY, edit_coordsInZ, edit_coordsInFlag;
@@ -101,16 +96,11 @@ HWND button_vramViewer;
 
 void StartupNetwork();
 void SendLiveGenScene(); void SendLiveGenCollision(); void SendLiveGenSpyro(); void SendLiveGenMobyModel(int model, int mobyId = -1); void SendLiveGenAllMobys();
-bool ConnectLiveGen(); void RebuildCollisionTree(); void RebuildCollisionTriangles(); void ResetLiveGenScene();
+bool ConnectLiveGen(); void RebuildCollisionTree(); void RebuildCollisionTriangles(); void ResetLiveGenScene(); void SaveMobys(); void LoadMobys();
 
 void UpdateTextureWindow();
 
 enum PageFlags {PGF_LEFT = 0, PGF_RIGHT = 1, PGF_CENTRE = 2, PGF_HCENTRE = 4, PGF_VCENTRE = 8};
-
-void SetCurPage(HWND page);
-void AddPageLine(uint32 pgFlags = PGF_LEFT, uint32 lineHeight = 19);
-void AddPageGroup(const char* groupName);
-HWND AddPageControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int y, int width, int heightInLines = 1);
 
 uint32 GetControlHex(HWND control);
 void SetControlHex(HWND control, uint32 value);
@@ -173,10 +163,10 @@ void Startup() {
 
 	for (int i = 0; i < numPages; i++) {
 		// Add page hwnd
-		*pageList[i] = CreateWindowEx(0, "WindowProcStatic", "", WS_CHILD, 0, 0, 0, 0, hwndEditor, NULL, mainModule, NULL);
+		pages[i]->hwnd = CreateWindowEx(0, "WindowProcStatic", "", WS_CHILD, 0, 0, 0, 0, hwndEditor, NULL, mainModule, NULL);
 
 		// Add tab
-		tci.pszText = pageNameList[i];
+		tci.pszText = const_cast<char*>(pages[i]->name);
 		SendMessage(tab, TCM_INSERTITEM, (WPARAM) i, (LPARAM) &tci);
 	}
 
@@ -209,30 +199,26 @@ void Shutdown() {
 }
 
 void CreateOnlinePage() {
-	SetCurPage(online_page);
+	edit_ip = pageOnline.AddControl("EDIT", "127.0.0.1", WS_BORDER, 83, 144);
 
-	AddPageLine(PGF_HCENTRE);
-	edit_ip = AddPageControl("EDIT", "127.0.0.1", WS_BORDER, 83, 144);
+	pageOnline.AddLine(PGF_CENTRE);
+	button_host = pageOnline.AddButton("Host", 85, 54, &Host);
+	button_join = pageOnline.AddButton("Join", 169, 54, &Join);
 
-	AddPageLine(PGF_CENTRE);
-	button_host = AddPageControl("BUTTON", "Host", BS_PUSHBUTTON, 85, 54);
-	button_join = AddPageControl("BUTTON", "Join", BS_PUSHBUTTON, 169, 54);
-
-	AddPageLine(PGF_CENTRE);
-	staticTransferStatus = AddPageControl("STATIC", "", SS_LEFT, 1, 300);
+	pageOnline.AddLine(PGF_CENTRE);
+	staticTransferStatus = pageOnline.AddControl("STATIC", "", SS_LEFT, 1, 300);
 }
 
 void CreatePowersPage() {
 	const char* powerNames[] = {"Attraction", "Repulsion", "Gem Attraction", "Forcefield (protection)", "Super Headbash", "Ultra Headbash", "Headbashpocalypse", 
 		"Butterfly Breath", "Death Stare", "Death Field", "Repulsion Stare", "Attraction Stare", "Exorcist (S3PAL)", "Tornado", "Telekinesis (S3PAL)", 
 		"Followers", "Look at Stuff (S3PAL)", "Roll (glide+X+L/R) (S3)", "Sanic Jumps (S3)", "Irreparable Giraffe", "Irreparable Beats"};
-	SetCurPage(powers_page);
 
 	for (int i = 0; i < sizeof (powerNames) / sizeof (const char*); i++) {
-		if (!(i&1))
-			AddPageLine(0, 17);
+		if (!(i&1) && i)
+			pagePowers.AddLine(0, 17);
 
-		buttonPowers[numPowers] = AddPageControl("BUTTON", powerNames[i], BS_AUTOCHECKBOX, 10 + (i & 1) * 150, 130);
+		buttonPowers[numPowers] = pagePowers.AddControl("BUTTON", powerNames[i], BS_AUTOCHECKBOX, 10 + (i & 1) * 150, 130);
 		SendMessage(buttonPowers[numPowers], BM_SETCHECK, ((powers & (1 << i)) ? BST_CHECKED : BST_UNCHECKED), 0);
 
 		numPowers++;
@@ -240,88 +226,89 @@ void CreatePowersPage() {
 }
 
 void CreateTexturesPage() {
-	SetCurPage(scene_page);
+	pageScene.AddGroup("General");
+	checkbox_autoLoad = pageScene.AddControl("BUTTON", "Automatically load mods upon level entry",  BS_AUTOCHECKBOX, 20, 260);
 
-	AddPageLine(PGF_LEFT);
-	AddPageGroup("Textures");
+	pageScene.AddLine();
+	button_saveAll = pageScene.AddControl("BUTTON", "Save All",  BS_PUSHBUTTON, 20, 128);
+	button_loadAll = pageScene.AddControl("BUTTON", "Load All",  BS_PUSHBUTTON, 164, 128);
+
+	pageScene.AddLine();
+	pageScene.AddGroup("Textures");
+	pageScene.AddButton("Save scene textures", 20, 128, &SaveTextures);
+	pageScene.AddButton("Load scene textures", 164, 128, &LoadTextures);
+	pageScene.AddLine();
+	pageScene.AddButton("Save object textures", 20, 128, &SaveObjectTextures);
+	pageScene.AddButton("Load object textures", 164, 128, &LoadObjectTextures);
+	pageScene.AddLine();
+	checkbox_texGenPalettes = pageScene.AddControl("BUTTON", "Generate palettes", BS_AUTOCHECKBOX, 20, 112);
+	checkbox_texShufflePalettes = pageScene.AddControl("BUTTON", "Shuffle palettes", BS_AUTOCHECKBOX, 126, 102);
+	checkbox_texAutoLq = pageScene.AddControl("BUTTON", "Auto LQs", BS_AUTOCHECKBOX, 228, 72);
+	pageScene.AddLine();
+	checkbox_texSeparate = pageScene.AddControl("BUTTON", "Separate bitmaps", BS_AUTOCHECKBOX, 20, 102);
+	pageScene.AddLine();
+	pageScene.AddButton("Open viewer", 20, 164+128-20, [](){textureWindowOpen = true; ShowWindow(hwndTexture, true);});
 	
-	button_saveTextures = AddPageControl("BUTTON", "Save scene textures",  BS_PUSHBUTTON, 20, 128);
-	button_loadTextures = AddPageControl("BUTTON", "Load scene textures",  BS_PUSHBUTTON, 164, 128);
-	AddPageLine();
-	button_saveMobyTextures = AddPageControl("BUTTON", "Save object textures",  BS_PUSHBUTTON, 20, 128);
-	button_loadMobyTextures = AddPageControl("BUTTON", "Load object textures",  BS_PUSHBUTTON, 164, 128);
-	AddPageLine();
-	checkbox_texGenPalettes = AddPageControl("BUTTON", "Generate palettes", BS_AUTOCHECKBOX, 20, 112);
-	checkbox_texShufflePalettes = AddPageControl("BUTTON", "Shuffle palettes", BS_AUTOCHECKBOX, 126, 102);
-	checkbox_texAutoLq = AddPageControl("BUTTON", "Auto LQs", BS_AUTOCHECKBOX, 228, 72);
-	AddPageLine();
-	checkbox_texSeparate = AddPageControl("BUTTON", "Separate bitmaps", BS_AUTOCHECKBOX, 20, 102);
-	AddPageLine();
-	button_editTextures = AddPageControl("BUTTON", "Open viewer", BS_PUSHBUTTON, 20, 164+128-20);
+	pageScene.AddLine();
+	pageScene.AddGroup("Sky");
+	pageScene.AddButton("Save sky", 20, 128, &SaveSky);
+	pageScene.AddButton("Load sky", 164, 128, [](){LoadSky();});
 	
-	AddPageLine();
-	AddPageGroup("Sky");
-	button_saveSky = AddPageControl("BUTTON", "Save sky",  BS_PUSHBUTTON, 20, 128);
-	button_loadSky = AddPageControl("BUTTON", "Load sky",  BS_PUSHBUTTON, 164, 128);
+	pageScene.AddLine();
+	checkbox_genDisableSkyOccl = pageScene.AddControl("BUTTON", "Disable sky occlusion", BS_AUTOCHECKBOX, 20, 150);
+
+	pageScene.AddLine();
+	pageScene.AddGroup("Colours");
+	pageScene.AddButton("Save colours", 20, 128, &SaveColours);
+	pageScene.AddButton("Load colours", 164, 128, &LoadColours);
+
+	pageScene.AddLine();
+	pageScene.AddControl("STATIC", "Avg. fog:", 0, 10, 80);
+	edit_fogR = pageScene.AddTextbox("127", 100, 30);
+	edit_fogG = pageScene.AddTextbox("127", 140, 30);
+	edit_fogB = pageScene.AddTextbox("127", 180, 30);
+	button_makeFog = pageScene.AddControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
+
+	pageScene.AddLine();
+	pageScene.AddControl("STATIC", "Light tweak:", 0, 10, 80);
+	edit_lightR = pageScene.AddTextbox("100", 100, 30);
+	edit_lightG = pageScene.AddTextbox("100", 140, 30);
+	edit_lightB = pageScene.AddTextbox("100", 180, 30);
+	button_makeLight = pageScene.AddControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
 	
-	AddPageLine();
-	checkbox_genDisableSkyOccl = AddPageControl("BUTTON", "Disable sky occlusion", BS_AUTOCHECKBOX, 20, 150);
-
-	AddPageLine();
-	AddPageGroup("Colours");
-	button_saveColours = AddPageControl("BUTTON", "Save colours",  BS_PUSHBUTTON, 20, 128);
-	button_loadColours = AddPageControl("BUTTON", "Load colours",  BS_PUSHBUTTON, 164, 128);
-
-	AddPageLine();
-	AddPageControl("STATIC", "Avg. fog:", 0, 10, 80);
-	edit_fogR = AddPageControl("EDIT", "127",  WS_BORDER, 100, 30);
-	edit_fogG = AddPageControl("EDIT", "127",  WS_BORDER, 140, 30);
-	edit_fogB = AddPageControl("EDIT", "127",  WS_BORDER, 180, 30);
-	button_makeFog = AddPageControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
+	pageScene.AddLine();
+	pageScene.AddControl("STATIC", "Sky tweak:", 0, 10, 80);
+	edit_skyR = pageScene.AddTextbox("100",  100, 30);
+	edit_skyG = pageScene.AddTextbox("100",  140, 30);
+	edit_skyB = pageScene.AddTextbox("100",  180, 30);
+	button_makeSky = pageScene.AddControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
 	
-	AddPageLine();
-	AddPageControl("STATIC", "Light tweak:", 0, 10, 80);
-	edit_lightR = AddPageControl("EDIT", "100",  WS_BORDER, 100, 30);
-	edit_lightG = AddPageControl("EDIT", "100",  WS_BORDER, 140, 30);
-	edit_lightB = AddPageControl("EDIT", "100",  WS_BORDER, 180, 30);
-	button_makeLight = AddPageControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
+	pageScene.AddLine();
+	button_setColours = pageScene.AddControl("BUTTON", "Assign Level Colours",  BS_PUSHBUTTON, 20, 128);
+	pageScene.AddButton("Assign Sky Colours",  164, 128, [](){TweakSky(edit_skyR->GetAsInt(), edit_skyG->GetAsInt(), edit_skyB->GetAsInt());});
+
+	pageScene.AddLine();
+	pageScene.AddControl("STATIC", "Note: Sky tweaks may result in colour loss!", 0, 10, 350);
+
+	pageScene.AddLine();
+	pageScene.AddGroup("Objects");
+	pageScene.AddButton("Save objects", 20, 128, &SaveMobys);
+	pageScene.AddButton("Load objects", 164, 128, &LoadMobys);
+
+	pageScene.AddLine();
+	pageScene.AddGroup("Goofy presets");
+
+	pageScene.AddButton("Colorbgone", 10, 280, &ColorlessMode);
+	pageScene.AddLine();
+	pageScene.AddButton("Gratuitous Pink", 10, 280, &PinkMode);
+	pageScene.AddLine();
+	pageScene.AddButton("Creepypasta Mode", 10, 280, &CreepypastaMode);
+	pageScene.AddLine();
+	pageScene.AddButton("Flat Palette Mode", 10, 280, &IndieMode);
+	pageScene.AddLine();
 	
-	AddPageLine();
-	AddPageControl("STATIC", "Sky tweak:", 0, 10, 80);
-	edit_skyR = AddPageControl("EDIT", "100",  WS_BORDER, 100, 30);
-	edit_skyG = AddPageControl("EDIT", "100",  WS_BORDER, 140, 30);
-	edit_skyB = AddPageControl("EDIT", "100",  WS_BORDER, 180, 30);
-	button_makeSky = AddPageControl("BUTTON", "Make...",  BS_PUSHBUTTON, 230, 55);
-	
-	AddPageLine();
-	button_setColours = AddPageControl("BUTTON", "Assign Level Colours",  BS_PUSHBUTTON, 20, 128);
-	button_tweakSky = AddPageControl("BUTTON", "Assign Sky Colours",  BS_PUSHBUTTON, 164, 128);
-
-	AddPageLine();
-	AddPageControl("STATIC", "Note: Sky tweaks may result in colour loss!", 0, 10, 350);
-
-	AddPageLine();
-	AddPageGroup("General");
-	button_saveAll = AddPageControl("BUTTON", "Save All",  BS_PUSHBUTTON, 20, 128);
-	button_loadAll = AddPageControl("BUTTON", "Load All",  BS_PUSHBUTTON, 164, 128);
-
-	AddPageLine();
-	checkbox_autoLoad = AddPageControl("BUTTON", "Autoload on level entry",  BS_AUTOCHECKBOX, 20, 150);
-
-	AddPageLine();
-	AddPageGroup("Goofy presets");
-
-	button_colorBGone = AddPageControl("BUTTON", "Colorbgone",  BS_PUSHBUTTON, 10, 280);
-	AddPageLine();
-	button_epicPinkMode = AddPageControl("BUTTON", "Gratuitous Pink Mode",  BS_PUSHBUTTON, 10, 280);
-	AddPageLine();
-	button_creepyPasta = AddPageControl("BUTTON", "That-Lame-Creepypasta Mode",  BS_PUSHBUTTON, 10, 280);
-	AddPageLine();
-	button_indieMode = AddPageControl("BUTTON", "Flat Colour Mode",  BS_PUSHBUTTON, 10, 280);
-	AddPageLine();
-	
-	AddPageLine();
-	AddPageControl("STATIC", "Note: Effects may result in colour loss!", 0, 10, 350);
+	pageScene.AddLine();
+	pageScene.AddControl("STATIC", "Note: Effects may result in colour loss!", 0, 10, 350);
 	
 	if (texEditFlags & TEF_SEPARATE)
 		SendMessage(checkbox_texSeparate, BM_SETCHECK, BST_CHECKED, 0);
@@ -334,77 +321,72 @@ void CreateTexturesPage() {
 }
 
 void CreateStatusPage() {
-	SetCurPage(status_page);
-
 	for (int i = 0; i < sizeof (statusObjects) / sizeof (StatusObject); i++) {
-		statusObjects[i].hwnd = AddPageControl("STATIC", statusObjects[i].name, 0, 10, 300);
-		AddPageLine();
+		statusObjects[i].hwnd = pageStatus.AddControl("STATIC", statusObjects[i].name, 0, 10, 300);
+		pageStatus.AddLine();
 	}
 
-	AddPageLine();
-	static_memVisualiser = AddPageControl("STATIC", "", SS_OWNERDRAW, 10, 300);
-	AddPageLine();
-	static_memStatus = AddPageControl("STATIC", "<Memory not analysed>", SS_SIMPLE, 10, 300);
+	pageStatus.AddLine();
+	static_memVisualiser = pageStatus.AddControl("STATIC", "", SS_OWNERDRAW, 10, 300);
+	pageStatus.AddLine();
+	static_memStatus = pageStatus.AddControl("STATIC", "<Memory not analysed>", SS_SIMPLE, 10, 300);
 	
-	AddPageLine();
-	AddPageLine();
-	button_vramViewer = AddPageControl("BUTTON", "Open VRAM viewer", BS_PUSHBUTTON, 10, 300);
+	pageStatus.AddLine();
+	pageStatus.AddLine();
+	button_vramViewer = pageStatus.AddControl("BUTTON", "Open VRAM viewer", BS_PUSHBUTTON, 10, 300);
 }
 
 void CreateGenesisPage() {
-	SetCurPage(genesis_page);
-	AddPageLine();
-
-	HWND static1 = AddPageControl("STATIC", "IP address:", 0, 7, 53);
+	HWND static1 = pageGenesis.AddControl("STATIC", "IP address:", 0, 7, 53);
 	
-	edit_genIp = AddPageControl("EDIT", "127.0.0.1",  WS_BORDER, 64, 120);
+	edit_genIp = pageGenesis.AddControl("EDIT", "127.0.0.1",  WS_BORDER, 64, 120);
 	
-	AddPageLine();
-	button_genConnect = AddPageControl("BUTTON", "Connect",  BS_PUSHBUTTON, 7, 177);
-
-	AddPageLine();
-	button_genSendScene = AddPageControl("BUTTON", "Send Scene",  BS_PUSHBUTTON, 7, 80);
-	button_genResetScene = AddPageControl("BUTTON", "Reset Scene",  BS_PUSHBUTTON, 95, 80);
-	AddPageLine();
-	button_genSendSpyro = AddPageControl("BUTTON", "Send Spyro",  BS_PUSHBUTTON, 7, 80);
-	button_genSendCollision = AddPageControl("BUTTON", "Send Collision",  BS_PUSHBUTTON, 95, 87);
-	AddPageLine();
-	button_genSendMobyModel = AddPageControl("BUTTON", "Send Object",  BS_PUSHBUTTON, 7, 80);
-	button_genSendAllObjects = AddPageControl("BUTTON", "Send All Objects",  BS_PUSHBUTTON, 95, 80);
-	AddPageLine();
-	button_genRebuildColltree = AddPageControl("BUTTON", "Rebuild Colltree",  BS_PUSHBUTTON, 7, 80);
-	button_genRebuildColltris = AddPageControl("BUTTON", "Regen Colltris",  BS_PUSHBUTTON, 95, 80);
+	pageGenesis.AddLine();
+	pageGenesis.AddButton("Connect", 7, 177, [](){if (!ConnectLiveGen()) MessageBox(NULL, "LiveGen Connection failed", "Please don't hurt me but", MB_OK);});
 	
-	AddPageLine();
-	checkbox_genDisableSceneOccl = AddPageControl("BUTTON", "Disable scene occlusion", BS_AUTOCHECKBOX, 7, 160);
+	pageGenesis.AddLine();
+	pageGenesis.AddButton("Send Scene", 7, 80, &SendLiveGenScene);
+	pageGenesis.AddButton("Reset Scene",  95, 80, &ResetLiveGenScene);
+	pageGenesis.AddLine();
+	pageGenesis.AddButton("Send Spyro", 7, 80, &SendLiveGenSpyro);
+	pageGenesis.AddButton("Send Collision", 95, 87, &SendLiveGenCollision);
+	pageGenesis.AddLine();
+	pageGenesis.AddButton("Send Object", 7, 80, [](){SendLiveGenMobyModel(GetObjectID() >= 0 ? mobys[GetObjectID()].type : 0, GetObjectID());});
+	pageGenesis.AddButton("Send All Objects", 95, 80, &SendLiveGenAllMobys);
+	pageGenesis.AddLine();
+	pageGenesis.AddButton("Rebuild Colltree", 7, 80, &RebuildCollisionTriangles);
+	pageGenesis.AddButton("Regen Colltris", 95, 80, &RebuildCollisionTree);
 	
-	AddPageLine();
-	static_genSceneStatus = AddPageControl("STATIC", "Scene status", 0, 7, 182);
-	AddPageLine();
-	static_genCollisionStatus = AddPageControl("STATIC", "Coll status", 0, 7, 182);
-
-	AddPageLine();
-	edit_coordsInX = AddPageControl("EDIT", "0",  WS_BORDER, 87, 40);
-	edit_coordsInY = AddPageControl("EDIT", "0",  WS_BORDER, 131, 40);
-	edit_coordsInZ = AddPageControl("EDIT", "0",  WS_BORDER, 173, 40);
-	edit_coordsInFlag = AddPageControl("EDIT", "0",  WS_BORDER, 233, 20);
-
-	AddPageLine();
-	static_coordsOutHalfwordBlock = AddPageControl("STATIC", "Halfword Block:", 0, 7, 80);
-	edit_coordsOutHalfwordBlock = AddPageControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+	pageGenesis.AddLine();
+	checkbox_genDisableSceneOccl = pageGenesis.AddControl("BUTTON", "Disable scene occlusion", BS_AUTOCHECKBOX, 7, 160);
 	
-	AddPageLine();
-	static_coordsOutWordBlock = AddPageControl("STATIC", "Word Block:", 0, 7, 80);
-	edit_coordsOutWordBlock = AddPageControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+	pageGenesis.AddLine();
+	static_genSceneStatus = pageGenesis.AddControl("STATIC", "Scene status", 0, 7, 182);
+	pageGenesis.AddLine();
+	static_genCollisionStatus = pageGenesis.AddControl("STATIC", "Coll status", 0, 7, 182);
 	
-	AddPageLine();
-	static_coordsOutWord = AddPageControl("STATIC", "Word:", 0, 7, 80);
-	edit_coordsOutWord = AddPageControl("EDIT", "0",  WS_BORDER, 87, 213-87);
-
-	AddPageLine();
-	static_sectorSizes = AddPageControl("STATIC", "", 0, 7, 300);
-	AddPageLine();
-	listbox_sceneSectorStatus = AddPageControl("LISTBOX", "Scene sector info", WS_BORDER | WS_VSCROLL, 0, 290, 10);
+	pageGenesis.AddLine();
+	edit_coordsInX = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 40);
+	edit_coordsInY = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 131, 40);
+	edit_coordsInZ = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 173, 40);
+	edit_coordsInFlag = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 233, 20);
+	
+	pageGenesis.AddLine();
+	static_coordsOutHalfwordBlock = pageGenesis.AddControl("STATIC", "Halfword Block:", 0, 7, 80);
+	edit_coordsOutHalfwordBlock = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+	
+	pageGenesis.AddLine();
+	static_coordsOutWordBlock = pageGenesis.AddControl("STATIC", "Word Block:", 0, 7, 80);
+	edit_coordsOutWordBlock = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+	
+	pageGenesis.AddLine();
+	static_coordsOutWord = pageGenesis.AddControl("STATIC", "Word:", 0, 7, 80);
+	edit_coordsOutWord = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
+	
+	pageGenesis.AddLine();
+	static_sectorSizes = pageGenesis.AddControl("STATIC", "", 0, 7, 300);
+	pageGenesis.AddLine();
+	listbox_sceneSectorStatus = pageGenesis.AddControl("LISTBOX", "Scene sector info", WS_BORDER | WS_VSCROLL, 0, 290, 10);
 }
 
 void Open_Windows() {
@@ -428,8 +410,8 @@ void WinLoop() {
 	// Update window tab
 	int cursel = SendMessage(tab, TCM_GETCURSEL, 0, 0);
 
-	for (int i = 0; i < sizeof (pageList) / sizeof (pageList[0]); i ++)
-		ShowWindow(*pageList[i], cursel == i ? true : false);
+	for (int i = 0; i < numPages; i ++)
+		ShowWindow(pages[i]->hwnd, cursel == i ? true : false);
 
 	// Main message loop
 	while (PeekMessage(&message, NULL, 0, 0, PM_REMOVE) > 0) {
@@ -666,8 +648,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 			if (hwnd == hwndEditor) {
 				MoveWindow(tab, 0, 0, LOWORD(lParam), 20, 1);
 
-				for (int i = 0; i < sizeof (pageList) / sizeof (pageList[0]); i++)
-					MoveWindow(*pageList[i], 0, 20, LOWORD(lParam), HIWORD(lParam) - 20, 1);
+				for (int i = 0; i < sizeof (pages) / sizeof (pages[0]); i++)
+					MoveWindow(pages[i]->hwnd, 0, 20, LOWORD(lParam), HIWORD(lParam) - 20, 1);
 			}
 
 			break;
@@ -700,11 +682,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 					disableSceneOccl = (SendMessage(checkbox_genDisableSceneOccl, BM_GETCHECK, 0, 0) == BST_CHECKED);
 				else if (control == checkbox_genDisableSkyOccl)
 					disableSkyOccl = (SendMessage(checkbox_genDisableSkyOccl, BM_GETCHECK, 0, 0) == BST_CHECKED);
-				else if (control == button_genSendMobyModel) {
-					int id = GetObjectID();
-
-					SendLiveGenMobyModel(id >= 0 ? mobys[id].type : 0, id);
-				} else if (control == button_saveAll) {
+				else if (control == button_saveAll) {
 					SaveTextures();
 					SaveObjectTextures();
 					SaveColours();
@@ -714,19 +692,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 					LoadObjectTextures();
 					LoadColours();
 					LoadSky();
-				} else if (control == button_loadSky) {
-					LoadSky();
 				} else if (control == button_setColours) {
 					LevelColours clrs;
 					char str[5] = {0,0,0,0,0};
 
-					SendMessage(edit_fogR, WM_GETTEXT, 4, (LPARAM) str); clrs.fogR = atoi(str);
-					SendMessage(edit_fogG, WM_GETTEXT, 4, (LPARAM) str); clrs.fogG = atoi(str);
-					SendMessage(edit_fogB, WM_GETTEXT, 4, (LPARAM) str); clrs.fogB = atoi(str);
+					SendMessage(edit_fogR->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.fogR = atoi(str);
+					SendMessage(edit_fogG->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.fogG = atoi(str);
+					SendMessage(edit_fogB->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.fogB = atoi(str);
 
-					SendMessage(edit_lightR, WM_GETTEXT, 4, (LPARAM) str); clrs.lightR = atoi(str);
-					SendMessage(edit_lightG, WM_GETTEXT, 4, (LPARAM) str); clrs.lightG = atoi(str);
-					SendMessage(edit_lightB, WM_GETTEXT, 4, (LPARAM) str); clrs.lightB = atoi(str);
+					SendMessage(edit_lightR->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.lightR = atoi(str);
+					SendMessage(edit_lightG->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.lightG = atoi(str);
+					SendMessage(edit_lightB->hwnd, WM_GETTEXT, 4, (LPARAM) str); clrs.lightB = atoi(str);
 
 					SetLevelColours(&clrs);
 				} else if (control == button_getColours) {
@@ -735,23 +711,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 					GetLevelColours(&clrs);
 				
-					sprintf(str, "%hhu", clrs.fogR); SendMessage(edit_fogR, WM_SETTEXT, 0, (LPARAM) str);
-					sprintf(str, "%hhu", clrs.fogG); SendMessage(edit_fogG, WM_SETTEXT, 0, (LPARAM) str);
-					sprintf(str, "%hhu", clrs.fogB); SendMessage(edit_fogB, WM_SETTEXT, 0, (LPARAM) str);
+					sprintf(str, "%hhu", clrs.fogR); SendMessage(edit_fogR->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+					sprintf(str, "%hhu", clrs.fogG); SendMessage(edit_fogG->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+					sprintf(str, "%hhu", clrs.fogB); SendMessage(edit_fogB->hwnd, WM_SETTEXT, 0, (LPARAM) str);
 
 					strcpy(str, "127");
-					SendMessage(edit_lightR, WM_SETTEXT, 0, (LPARAM) str);
-					SendMessage(edit_lightG, WM_SETTEXT, 0, (LPARAM) str);
-					SendMessage(edit_lightB, WM_SETTEXT, 0, (LPARAM) str);
-				} else if (control == button_tweakSky) {
-					int r, g, b;
-					char str[5] = {0,0,0,0,0};
-
-					SendMessage(edit_skyR, WM_GETTEXT, 4, (LPARAM) str); r = atoi(str);
-					SendMessage(edit_skyG, WM_GETTEXT, 4, (LPARAM) str); g = atoi(str);
-					SendMessage(edit_skyB, WM_GETTEXT, 4, (LPARAM) str); b = atoi(str);
-
-					TweakSky(r, g, b);
+					SendMessage(edit_lightR->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+					SendMessage(edit_lightG->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+					SendMessage(edit_lightB->hwnd, WM_SETTEXT, 0, (LPARAM) str);
 				} else if (control == button_next || control == button_prev) {
 					unsigned short* list;
 					int obj = GetObjectID();
@@ -849,31 +816,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 					UpdateVars();
 					break;
-				} else if (control == button_genConnect) {
-					if (!ConnectLiveGen())
-						MessageBox(NULL, "LiveGen Connection failed", "Please don't hurt me but", MB_OK);
-				} else if (control == button_editTextures) {
-					textureWindowOpen = true;
-					ShowWindow(hwndTexture, true);
 				} else if (control == button_vramViewer) {
 					ShowWindow(hwndVram, !IsWindowVisible(hwndVram));
 				} else {
-					ButCmd butCmds[] = {
-						button_host, Host, button_join, Join,
-						button_saveTextures, SaveTextures, button_loadTextures, LoadTextures, button_saveMobyTextures, SaveObjectTextures,
-						button_loadMobyTextures, LoadObjectTextures, button_saveSky, SaveSky, button_saveColours, SaveColours, button_loadColours, LoadColours, 
-						button_epicPinkMode, PinkMode, button_colorBGone, ColorlessMode, button_creepyPasta, CreepypastaMode, button_indieMode, IndieMode, 
-						button_genSendScene, SendLiveGenScene, button_genResetScene, ResetLiveGenScene, button_genSendCollision, SendLiveGenCollision, button_genSendSpyro, SendLiveGenSpyro, 
-						button_genSendAllObjects, SendLiveGenAllMobys, button_genRebuildColltree, RebuildCollisionTree, 
-						button_genRebuildColltris, RebuildCollisionTriangles};
-
-					// Check button commands
-					for (int i = 0; i < sizeof (butCmds) / sizeof (butCmds[0]); i++) {
-						if (control == butCmds[i].button) {
-							butCmds[i].function();
-							break;
+					// Check page button commands
+					for (SpyroEditPage* page : pages) {
+						for (CtrlButton* button : page->buttons) {
+							if (button->hwnd == control) {
+								if (button->onClick) {
+									button->onClick();
+								}
+								goto BreakAll;
+							}
 						}
 					}
+					BreakAll:;
 				}
 			}
 
@@ -948,13 +905,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 						if (avgB) diffB = (GetBValue(cc.rgbResult))*127/avgB;
 					
 						if ((HWND) lParam == button_makeLight) {
-							sprintf(str, "%hhu", diffR * 100 / 127); SendMessage(edit_lightR, WM_SETTEXT, 0, (LPARAM) str);
-							sprintf(str, "%hhu", diffG * 100 / 127); SendMessage(edit_lightG, WM_SETTEXT, 0, (LPARAM) str);
-							sprintf(str, "%hhu", diffB * 100 / 127); SendMessage(edit_lightB, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffR * 100 / 127); SendMessage(edit_lightR->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffG * 100 / 127); SendMessage(edit_lightG->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffB * 100 / 127); SendMessage(edit_lightB->hwnd, WM_SETTEXT, 0, (LPARAM) str);
 						} else {
-							sprintf(str, "%hhu", diffR * 100 / 127); SendMessage(edit_skyR, WM_SETTEXT, 0, (LPARAM) str);
-							sprintf(str, "%hhu", diffG * 100 / 127); SendMessage(edit_skyG, WM_SETTEXT, 0, (LPARAM) str);
-							sprintf(str, "%hhu", diffB * 100 / 127); SendMessage(edit_skyB, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffR * 100 / 127); SendMessage(edit_skyR->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffG * 100 / 127); SendMessage(edit_skyG->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+							sprintf(str, "%hhu", diffB * 100 / 127); SendMessage(edit_skyB->hwnd, WM_SETTEXT, 0, (LPARAM) str);
 						}
 					}
 				} else if ((HWND) lParam == button_makeFog) {
@@ -967,9 +924,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 					if (ChooseColor(&cc)) {
 						char str[5] = {0,0,0,0,0};
-						sprintf(str, "%hhu", GetRValue(cc.rgbResult)); SendMessage(edit_fogR, WM_SETTEXT, 0, (LPARAM) str);
-						sprintf(str, "%hhu", GetGValue(cc.rgbResult)); SendMessage(edit_fogG, WM_SETTEXT, 0, (LPARAM) str);
-						sprintf(str, "%hhu", GetBValue(cc.rgbResult)); SendMessage(edit_fogB, WM_SETTEXT, 0, (LPARAM) str);
+						sprintf(str, "%hhu", GetRValue(cc.rgbResult)); SendMessage(edit_fogR->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+						sprintf(str, "%hhu", GetGValue(cc.rgbResult)); SendMessage(edit_fogG->hwnd, WM_SETTEXT, 0, (LPARAM) str);
+						sprintf(str, "%hhu", GetBValue(cc.rgbResult)); SendMessage(edit_fogB->hwnd, WM_SETTEXT, 0, (LPARAM) str);
 					}
 				}
 			}
@@ -1472,51 +1429,50 @@ void UpdateTextureWindow() {
 	DeleteDC(drawDc);
 }
 
-uint32 pageLine[numPages] = {0};
-uint32 pageLineHeight[numPages] = {0};
-uint32 pageLineFlags[numPages] = {0};
-HWND pageGroup[numPages] = {NULL};
-uint32 pageGroupX[numPages] = {0}, pageGroupY[numPages] = {0};
-int curPage = 0;
+HWND SpyroEditPage::AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines) {
+	HWND ctrlHwnd = CreateWindowEx(0, ctrlClass, ctrlText, WS_CHILD | WS_VISIBLE | ctrlFlags, x, line, width, lineHeight * heightInLines, 
+								hwnd, NULL, mainModule, NULL);
+	
+	SendMessage(ctrlHwnd, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
+	return ctrlHwnd;
+}
 
-void SetCurPage(HWND page) {
-	for (int i = 0; i < sizeof (pageList) / sizeof (pageList[0]); i++) {
-		if (page == *pageList[i])
-			curPage = i;
+CtrlButton* SpyroEditPage::AddButton(const char* buttonText, int x, int width, void (*onClick)()) {
+	CtrlButton* button = new CtrlButton(AddControl("BUTTON", buttonText, BS_PUSHBUTTON, x, width, 1), onClick);
+	buttons.push_back(button);
+	return button;
+}
+
+CtrlTextbox* SpyroEditPage::AddTextbox(const char* defaultText, int x, int width) {
+	CtrlTextbox* textbox = new CtrlTextbox(AddControl("EDIT", defaultText, WS_BORDER, x, width, 1));
+	textboxes.push_back(textbox);
+	return textbox;
+}
+
+void SpyroEditPage::AddLine(uint32 pgFlags, uint32 lineHeight) {
+	this->lineHeight = lineHeight;
+
+	line += lineHeight + 3;
+	lineFlags = pgFlags;
+	
+	if (group) {
+		MoveWindow(group, groupX, groupY, 300, line - groupY + lineHeight + 5, TRUE);
 	}
 }
 
-HWND AddPageControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines) {
-	HWND hwnd = CreateWindowEx(0, ctrlClass, ctrlText, WS_CHILD | WS_VISIBLE | ctrlFlags, x, pageLine[curPage], width, pageLineHeight[curPage] * heightInLines, 
-								*pageList[curPage], NULL, mainModule, NULL);
-	
-	SendMessage(hwnd, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
-	return hwnd;
-}
-
-void AddPageLine(uint32 pgFlags, uint32 lineHeight) {
-	pageLine[curPage] += pageLineHeight[curPage] + 3;
-	pageLineHeight[curPage] = lineHeight;
-	pageLineFlags[curPage] = pgFlags;
-	
-	if (pageGroup[curPage]) {
-		MoveWindow(pageGroup[curPage], pageGroupX[curPage], pageGroupY[curPage], 300, pageLine[curPage] - pageGroupY[curPage] + pageLineHeight[curPage] + 5, TRUE);
-	}
-}
-
-void AddPageGroup(const char* groupName) {
-	if (pageGroup[curPage]) {
-		MoveWindow(pageGroup[curPage], pageGroupX[curPage], pageGroupY[curPage], 300, pageLine[curPage] - pageGroupY[curPage] + 5, TRUE);
-		pageLine[curPage] += 8;
+void SpyroEditPage::AddGroup(const char* groupName) {
+	if (group) {
+		MoveWindow(group, groupX, groupY, 300, line - groupY + 5, TRUE);
+		line += 8;
 	}
 
-	pageGroup[curPage] = CreateWindowEx(0, "BUTTON", groupName, WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 5, pageLine[curPage], 300, 0, *pageList[curPage], NULL, mainModule, NULL);
+	group = CreateWindowEx(0, "BUTTON", groupName, WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 5, line, 300, 0, hwnd, NULL, mainModule, NULL);
 	
-	SendMessage(pageGroup[curPage], WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
+	SendMessage(group, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 
-	pageGroupX[curPage] = 5;
-	pageGroupY[curPage] = pageLine[curPage];
-	pageLine[curPage] += 16;
+	groupX = 5;
+	groupY = line;
+	line += 16;
 }
 
 void SetControlString(HWND control, const char* string) {
@@ -1555,4 +1511,26 @@ void SetControlInt(HWND control, int value) {
 	char text[256];
 	sprintf(text, "%i", value);
 	SendMessage(control, WM_SETTEXT, 0, (LPARAM) text);
+}
+
+const char* CtrlTextbox::GetAsText() {
+	delete[] text;
+
+	int textLen = SendMessage(hwnd, WM_GETTEXTLENGTH, 0, 0);
+	text = new char[textLen + 1];
+	SendMessage(hwnd, WM_GETTEXT, textLen, (LPARAM)text);
+	return text;
+}
+
+void CtrlTextbox::SetText(const char* text) {
+	SendMessage(hwnd, WM_SETTEXT, 0, (LPARAM)text);
+}
+
+int CtrlTextbox::GetAsInt() {
+	char tempStr[25];
+
+	SendMessage(hwnd, WM_GETTEXT, 24, (LPARAM) tempStr);
+	tempStr[24] = '\0';
+
+	return atoi(tempStr);
 }

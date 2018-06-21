@@ -112,7 +112,10 @@
     <ClCompile Include="Source\SpyroScene.cpp">
       <Filter>Spyro</Filter>
     </ClCompile>
-    <ClCompile Include="SpyroMobyModel.cpp">
+    <ClCompile Include="Source\SpyroMobyModel.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroMobys.cpp">
       <Filter>Spyro</Filter>
     </ClCompile>
   </ItemGroup>

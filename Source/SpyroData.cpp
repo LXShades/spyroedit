@@ -79,6 +79,7 @@ int playingFrame = 0;
 void UpdateLiveGen();
 void LiveGenOnLevelEntry();
 void SpyroOnLevelEntry();
+void UpdateSpyroDestroyer();
 #include <utility>
 
 void SpyroLoop() {
@@ -116,6 +117,7 @@ void SpyroLoop() {
 			break;
 		case SPYRO2:
 		case SPYRO3:
+			//UpdateSpyroDestroyer();
 			NetworkLoop();
 			MultiplayerLoop();
 			UpdatePowers();
@@ -1442,8 +1444,10 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Colours.clr", rootDir, levelName); break;
 		case SEF_SKY:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Sky.sky", rootDir, levelName); break;
-		case SEF_SCENERY:
-			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Scene.scn", rootDir, levelName); break;
+		case SEF_GEOMETRY:
+			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Geometry.geo", rootDir, levelName); break;
+		case SEF_MOBYLAYOUT:
+			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Objects.mby", rootDir, levelName); break;
 		case SEF_SETTINGS:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Settings.ini", rootDir, levelName); break;
 		default:
