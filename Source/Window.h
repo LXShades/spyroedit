@@ -89,6 +89,9 @@ void CreateOnlinePage();
 void CreateTexturesPage();
 void CreateStatusPage();
 void CreateGenesisPage();
+#ifdef SPYRORENDER
+void CreateRenderPage();
+#endif
 
 void UpdateStatusPage();
 void UpdateGenesisPage();

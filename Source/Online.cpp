@@ -423,7 +423,7 @@ void Join() {
 		return;
 	}
 
-	players[0].addr.port = 2012;
+	players[0].addr.port = netPortMin;
 
 	// Send the join request, dude!
 	char send_msg[8] = "\x00YODUDE";

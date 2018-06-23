@@ -3,6 +3,10 @@
 #include "Vram.h"
 #include <windows.h>
 
+#ifdef SPYRORENDER
+#include "SpyroRenderer/SpyroRender.h"
+#endif
+
 #define DLLFUNCTION __declspec(dllexport)
 
 #define LOADROUTE(function, type) route_##function = type GetProcAddress(route_GPU_module, #function)
@@ -138,6 +142,10 @@ DLLFUNCTION void __stdcall GPUupdateLace(void) {
 
 	if (!c)
 		WinLoop();
+
+#ifdef SPYRORENDER
+	SpyroRender::OnUpdateLace();
+#endif
 
 	route_GPUupdateLace();
 }

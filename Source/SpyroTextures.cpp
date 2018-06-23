@@ -12,7 +12,7 @@ uint32 numTexCaches = 0;
 uint32 numPaletteCaches = 0;
 
 RGBQUAD paletteClrs[256];
-Matrix tileMatrices[8] = {
+TexMatrix tileMatrices[8] = {
 	// 0
 	1, 0,
 	0, 1,
@@ -773,10 +773,10 @@ void SaveObjectTextures() {
 	for (int i = 0, e = bmpWidth * bmpHeight; i < e; i++)
 		bmpData[i] = MAKECOLOR16(255, 0, 255);
 
-	// Draw white box to bmp
+	// Draw grey box to bmp
 	for (int y = 0; y < 32 && y < bmpHeight; y++) {
 		for (int x = 0; x < 32; x++)
-			bmpData[y * bmpWidth + x] = 0xFFFF;
+			bmpData[y * bmpWidth + x] = MAKECOLOR16(127, 127, 127);
 	}
 
 	// Draw textures to bmp

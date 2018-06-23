@@ -6,6 +6,9 @@
 #include "SpyroTextures.h"
 #include "SpyroScene.h"
 #include "Powers.h"
+#ifdef SPYRORENDER
+#include "SpyroRenderer/SpyroRender.h"
+#endif
 
 #include <cstdio>
 #include <cmath>
@@ -28,10 +31,22 @@ int textureHighlightedTile = 0;
 // Buttons and boxes
 HWND tab;
 SpyroEditPage pageObjects("Objects"), pageOnline("Online"), pagePowers("Powers"), pageScene("Mods"), pageGenesis("Genesis"), pageStatus("Status");
-SpyroEditPage* pages[] = {&pageScene, &pagePowers, &pageObjects, &pageGenesis, &pageOnline, &pageStatus};
+#ifdef SPYRORENDER
+SpyroEditPage pageRender("Render");
+#endif
+SpyroEditPage* pages[] = {
+	&pageScene, &pagePowers, &pageObjects, &pageGenesis, &pageOnline, &pageStatus, 
+	#ifdef SPYRORENDER
+		&pageRender
+	#endif
+};
 
 enum SpyroEditPageTypes {
-	PAGE_TEXTURES = 0, PAGE_POWERS, PAGE_OBJECTS, PAGE_GENESIS, PAGE_ONLINE, PAGE_STATUS, PAGE_NUMPAGES
+	PAGE_TEXTURES = 0, PAGE_POWERS, PAGE_OBJECTS, PAGE_GENESIS, PAGE_ONLINE, PAGE_STATUS, 
+#ifdef SPYRORENDER
+	PAGE_RENDER, 
+#endif
+	PAGE_NUMPAGES
 };
 const int numPages = PAGE_NUMPAGES;
 
@@ -81,8 +96,9 @@ struct StatusObject {
 	bool8 absolute;
 };
 
-StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Scene model", (uintptr) &scene.spyroScene.address}, 
-								{NULL, "Sky model", (uintptr) &skyData}, {NULL, "Collision data", (uintptr) &spyroCollision.address}, 
+StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Camera", (uintptr) &spyroCamera},
+								{NULL, "Scene model", (uintptr) &scene.spyroScene.address}, {NULL, "Sky model", (uintptr) &skyData}, 
+								{NULL, "Collision data", (uintptr) &spyroCollision.address}, 
 								{NULL, "Object models", (uintptr) &mobyModels}, 
 								{NULL, "Scene occlusion", (uintptr) &sceneOcclusion}, {NULL, "Sky occlusion", (uintptr) &skyOcclusion}, 
 								{NULL, "Textures (Spyro 1)", (uintptr) &lqTextures}, {NULL, "Textures (Spyro 2/3)", (uintptr) &textures}, 
@@ -179,6 +195,9 @@ void Startup() {
 	CreateTexturesPage();
 	CreateStatusPage();
 	CreateGenesisPage();
+#ifdef SPYRORENDER
+	CreateRenderPage();
+#endif
 
 	SetControlString(staticTransferStatus, "100% 100% 100% 100%\n100% 100% 100% 100%");
 
@@ -388,6 +407,13 @@ void CreateGenesisPage() {
 	pageGenesis.AddLine();
 	listbox_sceneSectorStatus = pageGenesis.AddControl("LISTBOX", "Scene sector info", WS_BORDER | WS_VSCROLL, 0, 290, 10);
 }
+
+#ifdef SPYRORENDER
+void CreateRenderPage() {
+	pageRender.AddLine();
+	pageRender.AddButton("Open Spyro Renderer", 90, 120, [](){SpyroRender::Open();});
+}
+#endif
 
 void Open_Windows() {
 	ShowWindow(hwndEditor, true);

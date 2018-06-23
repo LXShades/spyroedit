@@ -8,6 +8,7 @@
 #include "SpyroTextures.h"
 #include "Powers.h"
 #include "SpyroScene.h"
+#include "SpyroRenderer/SpyroRender.h"
 
 const char* spyro1LevelNames[] = {
 	"Artisans", "Stone Hill", "Dark Hollow", "Town Square", "Toasty", "Sunny Flight", 
@@ -36,6 +37,8 @@ int32* numMobys;
 SpyroPointer<ModelHeader>* mobyModels;
 
 CollisionCache collisionCache;
+
+SpyroCamera* spyroCamera;
 
 SpyroSky* skyData;
 uint32* skyNumSectors;
@@ -184,6 +187,10 @@ void SpyroLoop() {
 void SpyroOnLevelEntry() {
 	LiveGenOnLevelEntry();
 
+#ifdef SPYRORENDER
+	SpyroRender::OnLevelEntry();
+#endif
+
 	// Backup level colours (no more colour loss)
 	if (scene.spyroScene) {
 		SpyroSceneHeader* sceneData = scene.spyroScene;
@@ -218,7 +225,7 @@ void SpyroOnLevelEntry() {
 #define STRIPADDR(addr) ((addr) & 0x003FFFFF)
 
 enum SpyroDataPlacesOfInterest {POI_SPYRO, POI_MOBYS, POI_TEXTURES, POI_LQTEXTURES, POI_HQTEXTURES, POI_SKY, POI_LEVEL, POI_LEVELAREA, POI_LEVELNAMES, POI_SCENE, POI_COLLISION, 
-								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_MOBYCOLLISIONREGIONS, POI_NUMTYPES};
+								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_MOBYCOLLISIONREGIONS, POI_CAMERA, POI_NUMTYPES};
 
 uint32 spyroPois[POI_NUMTYPES]; // List of Spyro 'places of interest' e.g. areas of code with reference to a required set of data, such as the level scenery
 								// This list is re-used and/or updated on each Spyro data scan. This allows a game disc swap to take place comfortably
@@ -252,6 +259,7 @@ void UpdateSpyroPointers() {
 	gameState = GAMESTATE_NOTFOUND;
 	mobyModels = NULL;
 	levelArea = NULL;
+	spyroCamera = NULL;
 	mobyCollisionRegions = NULL;
 	spyroCollision.Reset();
 
@@ -266,10 +274,10 @@ void UpdateSpyroPointers() {
 		uint32 memEnd = poi < POI_NUMTYPES ? lastPois[poi] + 1 : maxMemScan / 4;
 
 		if (poi == POI_NUMTYPES) {
-			// Check if we have obtained all needed variables. If so, there's no need to scan the entire memory area
+			// Check if we have obtained all needed variables. If so, there's no need to scan the entire memory
 			if (spyroPois[POI_SPYRO] && spyroPois[POI_MOBYS] && (spyroPois[POI_TEXTURES] || (spyroPois[POI_LQTEXTURES] && spyroPois[POI_HQTEXTURES])) && 
 				spyroPois[POI_SKY] && spyroPois[POI_LEVEL] && spyroPois[POI_SCENE] && spyroPois[POI_COLLISION] && spyroPois[POI_GAMESTATE] && spyroPois[POI_JOKER] && 
-				(spyroPois[POI_LEVELAREA] || game != SPYRO3)) {
+				(spyroPois[POI_LEVELAREA] || game != SPYRO3) && spyroPois[POI_CAMERA]) {
 
 				break;
 			}
@@ -416,6 +424,14 @@ void UpdateSpyroPointers() {
 					spyro = (Spyro*) &bytemem[BUILDADDR(uintmem[i + 9], uintmem[i + 10])];
 					spyroExt = (SpyroExtended3*) spyro;
 					spyroPois[POI_SPYRO] = i;
+				}
+			}
+
+			// Camera (Spyro 2 and 3) ---------
+			if (!spyroCamera) {
+				if (uintmem[i+0] == 0x26940001 && uintmem[i+1] == 0x0293102A && (uintmem[i+4] >> 16) == 0x3C04 && (uintmem[i+5] >> 16) == 0x2484 && uintmem[i+6] == 0x27A50028) {
+					spyroCamera = (SpyroCamera*)&bytemem[BUILDADDR(uintmem[i+4], uintmem[i+5])];
+					spyroPois[POI_CAMERA] = i;
 				}
 			}
 

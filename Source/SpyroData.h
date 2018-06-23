@@ -135,7 +135,7 @@ struct Moby { // Moby size: 0x58
 
 	Animation anim; //0x3C
 
-	int8 animProgress;   // 0x40
+	uint8 animProgress;   // 0x40
 	int8 _unknown[2]; // 0x41
 	int8 animRun;     // 0x43
 
@@ -414,6 +414,23 @@ struct CollisionCache {
 	uint32 numUnlinkedTriangles;
 };
 
+struct SpyroCamera {
+	uint32 x1, y1, z1;
+	uint32 x2, y2, z2;
+
+	uint32 unk;
+	uint16 unketc, vAngle1;
+	uint16 hAngle1, unkderp;
+	uint32 mode;
+	uint32 unk2[4];
+
+	uint32 x3, y3, z3;
+	uint32 unk3;
+	uint32 x4, y4, z4;
+
+	uint32 angle;
+};
+
 struct VecU16 {
 	uint16 x, y, z;
 };
@@ -484,6 +501,8 @@ extern uint32* skyBackColour;
 
 extern uint8* sceneOcclusion;
 extern uint8* skyOcclusion;
+
+extern SpyroCamera* spyroCamera;
 
 extern SpyroCollision spyroCollision;
 
