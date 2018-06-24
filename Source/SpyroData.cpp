@@ -187,10 +187,6 @@ void SpyroLoop() {
 void SpyroOnLevelEntry() {
 	LiveGenOnLevelEntry();
 
-#ifdef SPYRORENDER
-	SpyroRender::OnLevelEntry();
-#endif
-
 	// Backup level colours (no more colour loss)
 	if (scene.spyroScene) {
 		SpyroSceneHeader* sceneData = scene.spyroScene;
@@ -219,6 +215,11 @@ void SpyroOnLevelEntry() {
 		LoadColours();
 		LoadSky();
 	}
+
+	// Inform Spyro Renderer of changes
+#ifdef SPYRORENDER
+	SpyroRender::OnLevelEntry();
+#endif
 }
 
 #define BUILDADDR(immUpper, immSignedLower) (((((immUpper) & 0xFFFF) << 16) + (int16) ((immSignedLower) & 0xFFFF)) & 0x003FFFFF)
@@ -1454,6 +1455,14 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Object Textures (Area %i).bmp", rootDir, levelName, *levelArea); break;
 			} else {
 				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Object Textures.bmp", rootDir, levelName); break;
+			}
+		case SEF_RENDERTEXTURES:
+			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\RenderTextures.bmp", rootDir, levelName); break;
+		case SEF_RENDEROBJTEXTURES:
+			if (levelArea && levelArea > 0) {
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\RenderObjectTexturesArea%i.bmp", rootDir, levelName, *levelArea); break;
+			} else {
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\RenderObjectTextures.bmp", rootDir, levelName); break;
 			}
 		case SEF_COLOURS:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Colours.clr", rootDir, levelName); break;

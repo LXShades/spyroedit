@@ -257,7 +257,7 @@ void CreateTexturesPage() {
 	pageScene.AddButton("Save scene textures", 20, 128, &SaveTextures);
 	pageScene.AddButton("Load scene textures", 164, 128, &LoadTextures);
 	pageScene.AddLine();
-	pageScene.AddButton("Save object textures", 20, 128, &SaveObjectTextures);
+	pageScene.AddButton("Save object textures", 20, 128, [](){SaveObjectTextures();});
 	pageScene.AddButton("Load object textures", 164, 128, &LoadObjectTextures);
 	pageScene.AddLine();
 	checkbox_texGenPalettes = pageScene.AddControl("BUTTON", "Generate palettes", BS_AUTOCHECKBOX, 20, 112);
@@ -425,6 +425,10 @@ void Close_Windows() {
 	ShowWindow(hwndEditor, 0);
 	ShowWindow(hwndTexture, 0);
 	ShowWindow(hwndVram, 0);
+
+#ifdef SPYRORENDER
+	SpyroRender::Close();
+#endif
 }
 
 void WinLoop() {

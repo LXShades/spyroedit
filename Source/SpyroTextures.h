@@ -110,9 +110,9 @@ struct ObjTexMap {
 #pragma pack(pop)
 
 void SaveTextures(); // saves textures based on the current setting
-void SaveTexturesAsSingle(); // Saves textures as a single 16-bit bmp file
+void SaveTexturesAsSingle(const char* customFilename = nullptr); // Saves textures as a single 16-bit bmp file
 void SaveTexturesAsMultiple(); // Saves textures into individual 8-bit HQ bmps and 4-bit LQ bmps
-void SaveObjectTextures(); // Saves textures of the object model
+void SaveObjectTextures(const char* customFilename = nullptr); // Saves textures of the object model
 void LoadTextures(); // Loads textures based on the current setting
 void LoadTexturesAsSingle(); // Loads textures from a single 16 or 24-bit bmp file
 void LoadTexturesAsMultiple(); // Loads textures from multiple 8-bit HQ bitmaps and 4-bit LQ bitmaps

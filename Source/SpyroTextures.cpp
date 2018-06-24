@@ -47,7 +47,6 @@ ObjTexMap objTexMap;
 
 uint8 avgTexColours[MAXAVGTEXCOLOURS][4][3]; // By texture, corner and colour channel
 
-void SaveTexturesAsSingle();
 void LoadObjectTextures();
 void UpdateObjTexMap();
 
@@ -193,7 +192,7 @@ void SaveTexturesAsMultiple() {
 	}
 }
 
-void SaveTexturesAsSingle() {
+void SaveTexturesAsSingle(const char* customFilename) {
 	uint32* uintmem = (uint32*) memory;
 
 	if (!textures && !hqTextures)
@@ -206,7 +205,12 @@ void SaveTexturesAsSingle() {
 	// Get textures filename
 	char filename[MAX_PATH];
 
-	GetLevelFilename(filename, SEF_TEXTURES, true);
+	if (customFilename) {
+		strncpy(filename, customFilename, MAX_PATH);
+		filename[MAX_PATH-1] = '\0';
+	} else {
+		GetLevelFilename(filename, SEF_TEXTURES, true);
+	}
 
 	// Calculate the expected size of the bitmap
 	int bmpWidth = TEXTURESPERROW * 64, bmpHeight = ((*numTextures + TEXTURESPERROW - 1) / TEXTURESPERROW) * 64;
@@ -759,7 +763,7 @@ void LoadTexturesIntoMemory() {
 	}
 }
 
-void SaveObjectTextures() {
+void SaveObjectTextures(const char* customFilename) {
 	UpdateObjTexMap();
 
 	uint16* vram16 = vram.GetVram16();
@@ -808,8 +812,15 @@ void SaveObjectTextures() {
 	info.height = bmpHeight;
 	info.data16 = bmpData;
 	
-	char filename[256];
-	GetLevelFilename(filename, SEF_OBJTEXTURES, true);
+	char filename[MAX_PATH];
+
+	if (customFilename) {
+		strncpy(filename, customFilename, MAX_PATH);
+		filename[MAX_PATH-1] = '\0';
+	} else {
+		GetLevelFilename(filename, SEF_OBJTEXTURES, true);
+	}
+
 	SaveBmp(&info, filename);
 
 	free(bmpData);
@@ -1168,7 +1179,7 @@ void UpdateObjTexMap() {
 		if ((umem32[modelAddress/4] & 0xFFFFFF00) || !umem32[modelAddress/4] || 
 			(!hasAnims && (umem32[modelAddress/4+4] >> 24 != 0x80 || umem32[modelAddress/4+5] >> 24 != 0x80)) ||
 			(hasAnims && (umem32[modelAddress/4+13] >> 24 != 0x80 || umem32[modelAddress/4+14] >> 24 != 0x80 || umem32[modelAddress/4+15] >> 24 != 0x80) && i > 0) || 
-			(i == 0 && (umem32[modelAddress/4+15] >> 24 != 0x80 || umem32[modelAddress/4+14] != 0x1714)))
+			(i == 0 && (umem32[modelAddress/4+15] >> 24 != 0x80)))
 			continue;
 
 		uint32* faces;

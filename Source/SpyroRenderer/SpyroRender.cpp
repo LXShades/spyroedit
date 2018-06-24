@@ -132,6 +132,7 @@ void UpdateTextures();
 void OnLevelEntry();
 inline float LerpAngle(float val1, float val2, float factor);
 void Alert(const char* string);
+void Close();
 
 void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uint8* adjusts, uint32 startOutputVertexIndex, uint32 numOutputVertices, bool doStartOnBlock, float scaleFactor, bool isSpyro);
 void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool isAnimated, bool isSpyro);
@@ -141,6 +142,12 @@ bool OnWndMainEvent(CtrlEventParams* params) {
 		wndMainW = LOWORD(params->wndLparam);
 		wndMainH = HIWORD(params->wndLparam);
 	}
+
+	if (params->tag == EVT_CLOSE) {
+		Close();
+		return false;
+	}
+
 	return true;
 }
 
@@ -174,7 +181,11 @@ void Open() {
 			Alert("Model buffer init failed");
 	}
 
-	gameStates = (GameState*) ALLOC(gameStates, sizeof (GameState) * numGameStates, POOL_UNDEFINED);
+	if (!gameStates) {
+		gameStates = (GameState*) malloc(sizeof (GameState) * numGameStates);
+		// Note: gameStates should be freed on Close, but for some reason if that is done the game can't realloc it
+	}
+
 	draw.SetActiveViewport(vpMain);
 
 	isRenderOpen = true;
@@ -184,14 +195,19 @@ void Open() {
 	OnLevelEntry();
 }
 
+std::mutex gameIsUpdatingMutex;
+
 void Close() {
+	if (!isRenderOpen) {
+		return;
+	}
+
 	isRenderOpen = false;
-	while (updatingRender); // Wait for the render thread to shutdown
+	gameIsUpdatingMutex.lock(); // Wait for the render thread to shutdown
+	gameIsUpdatingMutex.unlock();
 
 	wndMain.Destroy();
 	draw.Shutdown();
-
-	FREE(gameStates);
 }
 
 void OnLevelEntry() {
@@ -200,9 +216,6 @@ void OnLevelEntry() {
 	}
 	UpdateTextures();
 }
-
-std::mutex renderUpdateMutex;
-std::mutex gameIsUpdatingMutex;
 
 void OnUpdateLace() {
 	if (!isRenderOpen) {
@@ -284,9 +297,9 @@ void OnWinClose() {
 
 DWORD WINAPI RerenderThread(LPVOID null) {
 	while (isRenderOpen) {
-		updatingRender = true;
-
 		while (!gameIsUpdatingMutex.try_lock());
+
+		updatingRender = true;
 
 		// Determine the current game state and interpolation
 		uint32 renderTime = Sys::GetTime() - gameStateDelay;
@@ -307,7 +320,7 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 		if (!curGameState || !nextGameState) {
 			updatingRender = false;
 			gameIsUpdatingMutex.unlock();
-			Sleep(10);
+			Sleep(5);
 			continue;
 		}
 
@@ -463,7 +476,7 @@ void UpdateScene() {
 	lerpScene.numSectors = sceneData->numSectors;
 }
 
-void UpdateMoby(int mobyId, float x, float y, float z);
+bool UpdateMoby(int mobyId, float x, float y, float z);
 void UpdateMobys() {
 	if (!mobys)
 		return;
@@ -476,8 +489,11 @@ void UpdateMobys() {
 		}
 
 		if (mobys[i].state >= 0) {
-			UpdateMoby(i, mobys[i].x * MOBYPOSSCALE, mobys[i].y * MOBYPOSSCALE, mobys[i].z * MOBYPOSSCALE);
-			writeGameState->mobys[i].visible = true;
+			if (UpdateMoby(i, mobys[i].x * MOBYPOSSCALE, mobys[i].y * MOBYPOSSCALE, mobys[i].z * MOBYPOSSCALE)) {
+				writeGameState->mobys[i].visible = true;
+			} else {
+				writeGameState->mobys[i].visible = false;
+			}
 		} else
 			writeGameState->mobys[i].visible = false;
 	}
@@ -487,12 +503,12 @@ int32 sra(int32 val, uint8 amt) {
 	return (val & 0x80000000) ? (val >> amt) | ~(0xFFFFFFFF >> amt) : (uint32)val >> amt;
 }
 
-void UpdateMoby(int mobyId, float x, float y, float z) {
+bool UpdateMoby(int mobyId, float x, float y, float z) {
 	int mobyModelId = mobys[mobyId].type;
 	if (mobyModelId >= 768 || mobyModelId == 0)
-		return;
+		return false;
 	if (!mobyModels[mobyModelId].address || (mobyModels[mobyModelId].address & 0x7FFFFFFF) >= 0x001FFF00)
-		return;
+		return false;
 	
 	// NEW CONDITIONS:
 	// If a face is three-sided and its colours & 0x10, it'll appear as a large screen-facing polygon. & 7 is its depth? and & 8 is unknown
@@ -505,7 +521,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 		(!animated && (umem32[modelAddress/4+4] >> 24 != 0x80 || umem32[modelAddress/4+5] >> 24 != 0x80)) ||
 		(animated && (umem32[modelAddress/4+13] >> 24 != 0x80 || umem32[modelAddress/4+14] >> 24 != 0x80 || umem32[modelAddress/4+15] >> 24 != 0x80) && mobyModelId > 0) || 
 		(mobyModelId == 0 && (umem32[modelAddress/4+15] >> 24 != 0x80 || umem32[modelAddress/4+14] != 0x1714)))
-			return;
+			return false;
 
 	float scale = MOBYPOSSCALE;
 	uint32* verts, *faces, *colours;
@@ -524,7 +540,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 		SimpleModelStateHeader* state = model->states[mobys[mobyId].anim.prevAnim];
 
 		if (mobys[mobyId].anim.nextAnim >= model->numStates)
-			return;
+			return false;
 
 		verts = state->data32; faces = &state->data32[(state->hpFaceOff - 16) / 4]; colours = &state->data32[(state->hpColourOff - 16) / 4];
 		numVerts = state->numHpVerts; numColours = state->numHpColours;
@@ -532,7 +548,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 	}
 
 	if (numVerts >= 256 || numColours >= 256 || faces[0] / 8 >= 900)
-		return;
+		return false;
 
 	// Begin model conversion
 	Model drawModel;
@@ -542,7 +558,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 		float animProgress = (float)(mobys[mobyId].animProgress & 0x0F) / (float)(mobys[mobyId].animProgress >> 4);
 
 		if (!(mobys[mobyId].animProgress >> 4))
-			animProgress = 1.0f;
+			animProgress = 0.0f;
 
 		for (int i = 0; i < numVerts; i++)
 			drawModel.verts[i].Zero();
@@ -581,6 +597,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 
 	// Update the model
 	drawModel.numColours = numColours + 1;
+	drawModel.numVerts = numVerts;
 
 	writeGameState->mobys[mobyId].model = drawModel;
 	writeGameState->mobys[mobyId].rotation.x = mobys[mobyId].angle.x * DOUBLEPI / 255.0f;
@@ -589,6 +606,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 	writeGameState->mobys[mobyId].position.x = mobys[mobyId].x * MOBYPOSSCALE;
 	writeGameState->mobys[mobyId].position.y = mobys[mobyId].y * MOBYPOSSCALE;
 	writeGameState->mobys[mobyId].position.z = mobys[mobyId].z * MOBYPOSSCALE;
+	return true;
 }
 
 void UpdateSpyro() {
@@ -878,7 +896,7 @@ void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool is
 			uint32 word0 = faces[index], word1 = faces[index + 1], word2 = faces[index + 2], word3 = faces[index + 3], word4 = faces[index + 4];
 			int p1U = bitsu(word4, 16, 8), p1V = bitsu(word4, 24, 8), p2U = bitsu(word4, 0, 8), p2V = bitsu(word4, 8, 8), 
 				p3U = bitsu(word3, 0, 8),  p3V = bitsu(word3, 8, 8),  p4U = bitsu(word2, 0, 8), p4V = bitsu(word2, 8, 8);
-			int imageBlockX = ((word3 >> 16) & 0xF) * 0x40, imageBlockY = ((word3 >> 20) & 1) * 0x100;
+			int imageBlockX = bitsu(word3, 16, 4) * 0x40, imageBlockY = bitsu(word3, 20, 1) * 0x100;
 			int p1X = p1U + (imageBlockX * 4), p1Y = p1V + imageBlockY, p2X = p2U + (imageBlockX * 4), p2Y = p2V + imageBlockY, p3X = p3U + (imageBlockX * 4),
 				p3Y = p3V + imageBlockY, p4X = p4U + (imageBlockX * 4), p4Y = p4V + imageBlockY;
 			bool gotTextures = false;
@@ -887,12 +905,19 @@ void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool is
 				if (objTexMap.textures[i].minX <= p1X && objTexMap.textures[i].minY <= p1Y && objTexMap.textures[i].maxX >= p1X && objTexMap.textures[i].maxY >= p1Y) {
 					ObjTex* tex = &objTexMap.textures[i];
 					const int w = objTexMap.width, h = objTexMap.height;
-					int pX[4] = {p2X, p1X, p3X, p4X}, pY[4] = {p2Y, p1Y, p3Y, p4Y};
-					//int pX[4] = {p1X, p3X, p2X, p4X}, pY[4] = {p1Y, p3Y, p2Y, p4Y};
 
-					for (int j = 0; j < numFaceSides; j++) {
-						drawFace->u[j] = (float) (tex->mapX + pX[j] - objTexMap.textures[i].minX) / 512.0f;
-						drawFace->v[j] = (float) (tex->mapY + pY[j] - objTexMap.textures[i].minY) / (float)objTexMap.height;
+					if (numFaceSides == 4) {
+						int pX[4] = {p2X, p1X, p3X, p4X}, pY[4] = {p2Y, p1Y, p3Y, p4Y};
+						for (int j = 0; j < 4; j++) {
+							drawFace->u[j] = (float) (tex->mapX + pX[j] - objTexMap.textures[i].minX) / 512.0f;
+							drawFace->v[j] = (float) (tex->mapY + pY[j] - objTexMap.textures[i].minY) / (float)objTexMap.height;
+						}
+					} else {
+						int pX[4] = {p2X, p3X, p4X}, pY[4] = {p2Y, p3Y, p4Y};
+						for (int j = 0; j < 3; j++) {
+							drawFace->u[j] = (float) (tex->mapX + pX[2 - j] - objTexMap.textures[i].minX) / 512.0f;
+							drawFace->v[j] = (float) (tex->mapY + pY[2 - j] - objTexMap.textures[i].minY) / (float)objTexMap.height;
+						}
 					}
 
 					gotTextures = true;
@@ -1025,11 +1050,16 @@ void UpdateTextures() {
 		}
 	}
 
-	// HACKY -- Try loading custom texture file first
+	// Load the texture
 	char filename[MAX_PATH];
 	wchar filenameW[MAX_PATH];
-	GetLevelFilename(filename, SEF_TEXTURES);
+	GetLevelFilename(filename, SEF_RENDERTEXTURES, true);
 	mbstowcs(filenameW, filename, MAX_PATH);
+
+	if (GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
+		// Texture file doesn't exist? Create it
+		SaveTexturesAsSingle(filename);
+	}
 
 	if (sceneTex->LoadImageFromFile(filenameW)) {
 		// Convert blacks to transparent
@@ -1045,32 +1075,26 @@ void UpdateTextures() {
 			sceneTex->UnlockBits();
 		}
 	} else {
-		// Build scene texture
+		// Use white texture
 		uint32* bits;
-		bool success = sceneTex->LockBits((void**)&bits);
-
-		if (success) {
-			for (int i = 0; i < *numTextures; i++) {
-				for (int tile = 0; tile < 4; tile++) {
-					int curX = ((i * 64) % 1024) + TILETOX(tile), curY = (i * 64) / 1024 * 64 + TILETOY(tile);
-
-					for (int y = 0; y < 32; y++) {
-						for (int x = 0; x < 32; x++) {
-							bits[(curY + y) * 1024 + curX + x] = texCaches[i].tiles[tile].bitmap[y * 32 + x] | 0xFF000000;
-						}
-					}
-				}
-			}
+		sceneTex->SetDimensions(1, 1);
+		if (sceneTex->LockBits((void**)&bits)) {
+			bits[0] = 0xFFFFFFFF;
+			sceneTex->UnlockBits();
 		}
-
-		sceneTex->UnlockBits(true);
 	}
 
 	// Build obj texture
 	UpdateObjTexMap();
 
-	GetLevelFilename(filename, SEF_OBJTEXTURES);
+	GetLevelFilename(filename, SEF_RENDEROBJTEXTURES, true);
 	mbstowcs(filenameW, filename, MAX_PATH);
+
+	if (GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
+		// Texture file doesn't exist? Create it
+		SaveObjectTextures(filename);
+	}
+
 	if (objTex->LoadImageFromFile(filenameW)) {
 		// Copypasta...
 		uint32* bits;
@@ -1085,51 +1109,13 @@ void UpdateTextures() {
 			objTex->UnlockBits();
 		}
 	} else {
-		const int vramWidth = 1024; // vram width in u16s
+		// Use white texture
 		uint32* bits;
-		bool success;// = sceneTex->LockBits((void**)&bits);
-		objTex->SetDimensions(512, 512);
-		success = objTex->LockBits((void**) &bits);
-
-		if (success) {
-			const int bmpWidth = 512, bmpHeight = 512;
-
-			for (int i = 0; i < bmpWidth * bmpHeight; i++)
-				bits[i] = 0xFFFFFFFF;
-
-			// Draw white box to bmp
-			for (int y = 0; y < 32 && y < bmpHeight; y++) {
-				for (int x = 0; x < 32; x++)
-					bits[y * bmpWidth + x] = 0xFF7F7F7F;
-			}
-
-			// Draw textures to bmp
-			for (int i = 0; i < objTexMap.numTextures; i++) {
-				ObjTex* tex = &objTexMap.textures[i];
-				uint16* palette = &vram16[tex->paletteX + tex->paletteY * vramWidth];
-
-				int bmpX = tex->mapX, bmpY = tex->mapY;
-				for (int y = 0, texHeight = tex->maxY - tex->minY + 1; y < texHeight; y++) {
-					int rowStart = (bmpY + y) * bmpWidth + bmpX;
-					for (int x = 0, texWidth = tex->maxX - tex->minX + 1; x < texWidth; x++) {
-						uint16 clr;
-
-						if (x & 1)
-							clr = palette[(vram8[(tex->minY + y) * 2048 + (tex->minX + x)/2] >> 4) & 0x0F];
-						else
-							clr = palette[vram8[(tex->minY + y) * 2048 + (tex->minX + x)/2] & 0x0F];
-
-						int r = GETR16(clr), g = GETG16(clr), b = GETB16(clr);
-						bits[rowStart + x] = MAKECOLOR(r, g, b);
-
-						if (clr == 0)
-							bits[rowStart + x] = 0x00000000;
-					}
-				}
-			}
+		objTex->SetDimensions(1, 1);
+		if (objTex->LockBits((void**)&bits)) {
+			bits[0] = 0xFFFFFFFF;
+			objTex->UnlockBits();
 		}
-
-		objTex->UnlockBits(true);
 	}
 }
 
