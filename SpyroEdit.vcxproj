@@ -40,17 +40,18 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetName>gpuSpyroEdit</TargetName>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\;Source\SpyroRenderer\sdEngine\include</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>gpuSpyroEdit</TargetName>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);Source\;GenLib\include\;Source\SpyroRenderer\sdEngine\include</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level2</WarningLevel>
       <Optimization>Disabled</Optimization>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>_WINDLL;SPYRORENDER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -71,6 +72,9 @@
     <PostBuildEvent>
       <Message>Running distribute_debug.bat</Message>
     </PostBuildEvent>
+    <FxCompile>
+      <ShaderModel>4.0</ShaderModel>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -79,6 +83,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>_WINDLL;SPYRORENDER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -92,6 +97,9 @@
       <Command>start distribute_release.bat</Command>
       <Message>Running distribute_release.bat</Message>
     </PostBuildEvent>
+    <FxCompile>
+      <ShaderModel>4.0</ShaderModel>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="GenLib\include\GenError.h" />
@@ -108,6 +116,18 @@
     <ClInclude Include="Source\SpyroData.h" />
     <ClInclude Include="Source\SpyroGenesis.h" />
     <ClInclude Include="Source\SpyroLiveGen.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdError.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdFile.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdGui.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdMath.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdMenu.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRender.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRenderPrivateTypes.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRenderResources.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdSystem.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdTypes.h" />
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdWindow.h" />
+    <ClInclude Include="Source\SpyroRenderer\SpyroRender.h" />
     <ClInclude Include="Source\SpyroScene.h" />
     <ClInclude Include="Source\SpyroTextures.h" />
     <ClInclude Include="Source\Types.h" />
@@ -115,6 +135,7 @@
     <ClInclude Include="Source\Window.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Source\SpyroRenderer\sdEngine\include\sdMathInline.inl" />
     <None Include="SpyroEdit.def" />
   </ItemGroup>
   <ItemGroup>
@@ -125,12 +146,50 @@
     <ClCompile Include="Source\Powers.cpp" />
     <ClCompile Include="Source\SpyroData.cpp" />
     <ClCompile Include="Source\SpyroLiveGen.cpp" />
+    <ClCompile Include="Source\SpyroRenderer\SpyroRender.cpp" />
     <ClCompile Include="Source\SpyroScene.cpp" />
     <ClCompile Include="Source\SpyroTextures.cpp" />
     <ClCompile Include="Source\Vram.cpp" />
     <ClCompile Include="Source\Window.cpp" />
     <ClCompile Include="Source\SpyroMobyModel.cpp" />
     <ClCompile Include="Source\SpyroMobys.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Source\SpyroRenderer\SuddenDeathEngine.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_All.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_C.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_CT.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_All.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_C.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CN.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CT.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CTN.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

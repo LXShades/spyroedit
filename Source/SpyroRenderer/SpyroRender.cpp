@@ -133,7 +133,7 @@ void OnLevelEntry();
 inline float LerpAngle(float val1, float val2, float factor);
 void Alert(const char* string);
 
-void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uint8* adjusts, uint32 numVertices, bool doStartOnBlock, float scaleFactor, bool isSpyro);
+void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uint8* adjusts, uint32 startOutputVertexIndex, uint32 numOutputVertices, bool doStartOnBlock, float scaleFactor, bool isSpyro);
 void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool isAnimated, bool isSpyro);
 
 bool OnWndMainEvent(CtrlEventParams* params) {
@@ -556,7 +556,7 @@ void UpdateMoby(int mobyId, float x, float y, float z) {
 			uint16* blocks = &animHeader->data[frameInfo->blockOffset];
 			uint8* adjusts = (uint8*)&blocks[frameInfo->numBlocks + ((frameInfo->startFlags & 1) << 8)];
 
-			ConvertAnimatedVertices(&drawModel, verts, blocks, adjusts, animHeader->numVerts, (frameInfo->startFlags & 2) != 0, (frame == 0 ? scale * (1.0f - animProgress) : scale * animProgress), false);
+			ConvertAnimatedVertices(&drawModel, verts, blocks, adjusts, 0, animHeader->numVerts, (frameInfo->startFlags & 2) != 0, (frame == 0 ? scale * (1.0f - animProgress) : scale * animProgress), false);
 		}
 	} else {
 		for (int i = 0; i < numVerts; i++)
@@ -616,8 +616,6 @@ void UpdateSpyro() {
 	if (!(spyro->animprogress >> 4 & 0x0F))
 		animProgress = 1.0f;
 
-	frame->headPos = 0;
-
 	for (int frameIndex = 0; frameIndex < 2; frameIndex++) {
 		int curX = 0, curY = 0, curZ = 0;
 		int blockX = 0, blockY = 0, blockZ = 0;
@@ -631,13 +629,21 @@ void UpdateSpyro() {
 		uint32* verts = anim->verts;
 		uint16* blocks = &anim->data[frame->blockOffset / 2];
 		uint8* adjusts = &((uint8*)anim->data)[frame->blockOffset + ((frame->word1 >> 10) & 0x3FF)];
-		int headX = bitss(frame->headPos, 21, 11), headY = bitss(frame->headPos, 10, 11), headZ = bitss(frame->headPos, 0, 10) / 2;
+		int headX = bitss(frame->headPos, 21, 11), headY = bitss(frame->headPos, 10, 11), headZ = bitss(frame->headPos, 0, 10);
 		int headVert = anim->headVertStart;
 		uint32 addr = (uintptr)&anim->headVertStart - (uintptr)umem32;
 		int headAdjust = ((uintptr)((uint16*)anim->data) + (frame->word1 >> 20) + frame->blockOffset) - (uintptr)adjusts;
 		int headBlock = (frame->word1 & 0x3FF) / 2;
 		
-		ConvertAnimatedVertices(&writeGameState->spyro.model, verts, blocks, adjusts, headVert, (frame->unk1 & 1), scale * (frameIndex == 0 ? 1.0 - animProgress : animProgress), true);
+		float frameScale = scale * (frameIndex == 0 ? 1.0f - animProgress : animProgress);
+		ConvertAnimatedVertices(&writeGameState->spyro.model, verts, blocks, adjusts, 0, headVert, (frame->unk1 & 1), frameScale, true);
+		ConvertAnimatedVertices(&writeGameState->spyro.model, &verts[headVert], &blocks[headBlock], &adjusts[headAdjust], headVert, numVerts - headVert, (frame->unk1 & 2), frameScale, true);
+
+		// Add head position
+		Vec3 headOffset = {headX * frameScale, headY * frameScale, headZ * frameScale};
+		for (int v = headVert; v < numVerts; ++v) {
+			writeGameState->spyro.model.verts[v] += headOffset;
+		}
 	}
 
 	// Set colours
@@ -702,7 +708,7 @@ void DrawMobys() {
 
 // Converts animated vertices from Spyro format to absolute format and adds them to modelOut->verts.
 // Note that this RELATIVELY ADDS positions to the vertices! This is so that you can call the function multiple times to blend animations.
-void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uint8* adjusts, uint32 numVertices, bool doStartOnBlock, float scaleFactor, bool isSpyro) {
+void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uint8* adjusts, uint32 startOutputVertexIndex, uint32 numOutputVertices, bool doStartOnBlock, float scaleFactor, bool isSpyro) {
 	int curX = 0, curY = 0, curZ = 0;
 	int blockX = 0, blockY = 0, blockZ = 0;
 	int curBlock = 0;
@@ -720,7 +726,7 @@ void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uin
 		nextBlock = false;
 	}
 
-	for (int i = 0; i < numVertices; i++) {
+	for (int i = 0; i < numOutputVertices; i++) {
 		bool usedBlock = false;
 		int x = bitss(verts[i], 21, 11), y = bitss(verts[i], 10, 11), z = bitss(verts[i], 0, 10);
 
@@ -791,14 +797,14 @@ void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uin
 
 		if (isSpyro) {
 			curX += x; curY -= y; curZ -= z; // x = fwd/back y = left/right z = up/down
-			modelOut->verts[i] += Vec3((float)curX * scaleFactor, (float)-curY * scaleFactor, (float)-curZ * scaleFactor);
+			modelOut->verts[startOutputVertexIndex + i] += Vec3((float)curX * scaleFactor, (float)-curY * scaleFactor, (float)-curZ * scaleFactor);
 		} else {
 			curX += x; curY += y; curZ += z;
-			modelOut->verts[i] += Vec3((float)curX * scaleFactor, (float)curY * scaleFactor, (float)curZ * 2.0f * scaleFactor);
+			modelOut->verts[startOutputVertexIndex + i] += Vec3((float)curX * scaleFactor, (float)curY * scaleFactor, (float)curZ * 2.0f * scaleFactor);
 		}
 	}
 
-	modelOut->numVerts = numVertices;
+	modelOut->numVerts = startOutputVertexIndex + numOutputVertices;
 }
 
 void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool isAnimated, bool isSpyro) {
@@ -1026,7 +1032,18 @@ void UpdateTextures() {
 	mbstowcs(filenameW, filename, MAX_PATH);
 
 	if (sceneTex->LoadImageFromFile(filenameW)) {
-		;
+		// Convert blacks to transparent
+		uint32* bits;
+		
+		if (sceneTex->LockBits((void**)&bits)) {
+			for (uint32* bit = bits, *endBit = &bits[sceneTex->GetWidth() * sceneTex->GetHeight()]; bit < endBit; ++bit) {
+				if (*bit == 0xFF000000) {
+					*bit = 0x00000000;
+				}
+			}
+
+			sceneTex->UnlockBits();
+		}
 	} else {
 		// Build scene texture
 		uint32* bits;
@@ -1055,7 +1072,18 @@ void UpdateTextures() {
 	GetLevelFilename(filename, SEF_OBJTEXTURES);
 	mbstowcs(filenameW, filename, MAX_PATH);
 	if (objTex->LoadImageFromFile(filenameW)) {
-		;
+		// Copypasta...
+		uint32* bits;
+
+		if (objTex->LockBits((void**)&bits)) {
+			for (uint32* bit = bits, *endBit = &bits[objTex->GetWidth() * objTex->GetHeight()]; bit < endBit; ++bit) {
+				if (*bit == 0xFF000000) {
+					*bit = 0x00000000;
+				}
+			}
+
+			objTex->UnlockBits();
+		}
 	} else {
 		const int vramWidth = 1024; // vram width in u16s
 		uint32* bits;
