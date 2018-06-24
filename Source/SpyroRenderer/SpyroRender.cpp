@@ -539,7 +539,7 @@ bool UpdateMoby(int mobyId, float x, float y, float z) {
 		SimpleModelHeader* model = (SimpleModelHeader*) (mobyModels[mobyModelId]);
 		SimpleModelStateHeader* state = model->states[mobys[mobyId].anim.prevAnim];
 
-		if (mobys[mobyId].anim.nextAnim >= model->numStates)
+		if (mobys[mobyId].anim.prevAnim >= model->numStates)
 			return false;
 
 		verts = state->data32; faces = &state->data32[(state->hpFaceOff - 16) / 4]; colours = &state->data32[(state->hpColourOff - 16) / 4];
@@ -647,9 +647,8 @@ void UpdateSpyro() {
 		uint32* verts = anim->verts;
 		uint16* blocks = &anim->data[frame->blockOffset / 2];
 		uint8* adjusts = &((uint8*)anim->data)[frame->blockOffset + ((frame->word1 >> 10) & 0x3FF)];
-		int headX = bitss(frame->headPos, 21, 11), headY = bitss(frame->headPos, 10, 11), headZ = bitss(frame->headPos, 0, 10);
+		int headX = bitss(frame->headPos, 21, 11), headY = bitss(frame->headPos, 10, 11), headZ = bitss(frame->headPos, 0, 10) * 2;
 		int headVert = anim->headVertStart;
-		uint32 addr = (uintptr)&anim->headVertStart - (uintptr)umem32;
 		int headAdjust = ((uintptr)((uint16*)anim->data) + (frame->word1 >> 20) + frame->blockOffset) - (uintptr)adjusts;
 		int headBlock = (frame->word1 & 0x3FF) / 2;
 		
@@ -826,8 +825,6 @@ void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uin
 }
 
 void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool isAnimated, bool isSpyro) {
-	int32 tempU[512], tempV[512];
-
 	int numSides = 0, numUvs = 0, numUvIndices = 0, index = 1, maxIndex = faces[0] / 4 + 1;
 	int curFace = 0;
 

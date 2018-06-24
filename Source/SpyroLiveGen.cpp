@@ -157,7 +157,7 @@ void UpdateLiveGen() {
 			const GenTransform* trans = ((GenInst*)obj)->GetTransform();
 			spyro->x = (int) (trans->localTranslation.x / MOBYPOSITIONSCALE);
 			spyro->y = (int) (trans->localTranslation.y / MOBYPOSITIONSCALE);
-			spyro->z = (int) ((trans->localTranslation.z - MOBYSPHERESIZE) / MOBYPOSITIONSCALE);
+			spyro->z = (int) (trans->localTranslation.z / MOBYPOSITIONSCALE);
 		}
 
 		obj->ValidateAll();
@@ -394,80 +394,50 @@ void SendLiveGenMobyInstances() {
 }
 
 void SendLiveGenSpyro() {
-	if (!live || !spyroModelPointer)
+	if (!live || !spyro || !mobyModels)
 		return;
 
-	GenState modelState(GENID_SPYROMODEL, GENMODEL_MODIDS);
-	GenValueSet* elems = modelState.Lock(GENTYPE_ID, 1);
-	elems->id[0] = GENID_SPYROMODELMOD;
-	modelState.Unlock();
+	GenInst* spyroInst = (GenInst*)genScene.CreateOrGetObject(GENID_SPYROINSTANCE, GENOBJ_INST);
+	float mobyX = spyro->x * MOBYPOSITIONSCALE, mobyY = spyro->y * MOBYPOSITIONSCALE, mobyZ = spyro->z * MOBYPOSITIONSCALE;
 
-	GenState modState(GENID_SPYROMODELMOD, GENMOD_TYPE);
+	BuildGenMobyModel(0, spyro->anim.nextAnim, spyro->anim.nextFrame);
 
-	elems = modState.Lock(GENTYPE_U16, 1);
-	elems->u16[0] = MOD_EDITMESH;
-	modState.Unlock();
+	if (genScene.GetModelById(GENID_MOBYMODELS)) {
+		spyroInst->SetModel(GENID_MOBYMODELS);
+	} else {
+		spyroInst->SetModel(GENID_GENERICMOBYMODEL);
+		mobyZ += MOBYSPHERESIZE;
+	}
+
+	spyroInst->SetTransform(GenTransform(GenVec3(mobyX, mobyY, mobyZ), GenVec3(0.0f, 0.0f, spyro->angle.z / 255.0f * 6.28f)));
+	spyroInst->SetMaterial(GENID_MOBYTEXTURES);
+	spyroInst->SetName("Spyro");
+
+	// Send texture
+	char filename[260];
+
+	GetLevelFilename(filename, SEF_OBJTEXTURES);
+
+	GenState texState(GENID_MOBYTEXTURES, GENMAT_SOURCEFILE); // todo genSceneify
+	GenValueSet* elems = texState.Lock(GENTYPE_CSTRING, strlen(filename) + 1);
+		
+	strcpy(elems->s8, filename);
+	texState.Unlock();
+
+	live->SendState(texState.GetSubstate());
+
+	// Send model states
+	GenObject* objList[] = {genScene.GetModelById(GENID_MOBYMODELS), genScene.GetModById(GENID_MOBYMODS), spyroInst};
 	
-	int animId = 16;
-	uint32 animAddr = umem32[(umem32[(spyroModelPointer&0x003FFFFF)/4]&0x003FFFFF)/4+animId] & 0x003FFFFF;
+	for (int i = 0; i < sizeof (objList) / sizeof (objList[0]); i++) {
+		if (!objList[i])
+			continue;
 
-	if (!animAddr)
-		return;
-
-	uint8 numVerts = umem8[animAddr + 3];
-	uint32* verts = &umem32[(umem32[animAddr / 4 + 1] & 0x003FFFFF) / 4];
-	uint32* faces = &umem32[(umem32[animAddr / 4 + 2] & 0x003FFFFF) / 4];
-	GenState vertState(0, GENMESH_VERTS);
-	elems = vertState.Lock(GENTYPE_VEC3, numVerts);
-
-	int lastX = 0, lastY = 0, lastZ = 0;
-	for (int i = 0; i < numVerts; i++) {
-		int x = bitss(verts[i], 21, 11), y = bitss(verts[i], 10, 11), z = bitss(verts[i], 0, 10);
-		elems->vec3[i].x = (lastX + x) / 1024.0f;
-		elems->vec3[i].y = (lastY + y) / 1024.0f;
-		elems->vec3[i].z = (lastZ + z) * 2.0f / 1024.0f;
-		lastX += x; lastY += y; lastZ += z;
-	}
-	vertState.Unlock();
-
-	int numFaces = umem32[0x001E12F4/4] / 0x14;
-	GenState faceState(0, GENMESH_FACEVERTINDEX);
-	elems = faceState.Lock(GENTYPE_S16, numFaces * 4);
-
-	int numSides = 0;
-	for (int i = 0; i < numFaces; i++) {
-		uint32 face = umem32[(0x001E12F4 + 4 + i * 0x14) / 4];
-
-		if ((face & 0xFF) == ((face >> 8) & 0xFF)) {
-			elems->s16[numSides++] = face >> 24 & 0xFF;
-			elems->s16[numSides++] = face >> 16 & 0xFF;
-			elems->s16[numSides++] = -(int)(face >> 8 & 0xFF) - 1;
-		} else {
-			elems->s16[numSides++] = face >> 24 & 0xFF;
-			elems->s16[numSides++] = face >> 16 & 0xFF;
-			elems->s16[numSides++] = face & 0xFF;
-			elems->s16[numSides++] = -(int)(face >> 8 & 0xFF) - 1;
-		}
+		live->SendState(objList[i]->GetState(GENCOMMON_MULTIPLE));
+		objList[i]->ValidateAll();
 	}
 
-	elems->numValues = numSides;
-	faceState.Unlock();
-
-	GenState instState(GENID_SPYROINSTANCE, GENINST_MODELID);
-	elems = instState.Lock(GENTYPE_ID, 1);
-	elems->id[0] = GENID_SPYROMODEL;
-	instState.Unlock();
-
-	GenState modMeshState(GENID_SPYROMODELMOD, GENMOD_MESHDATA);
-
-	modMeshState.AddSubstate(vertState);
-	modMeshState.AddSubstate(faceState);
-
-	// Send all states
-	live->SendState(modState);
-	live->SendState(modMeshState);
-	live->SendState(modelState);
-	live->SendState(instState);
+	live->SendState(spyroInst->GetState(GENCOMMON_MULTIPLE));
 }
 
 uint32 FindFreeMemory(int sectorSize) {

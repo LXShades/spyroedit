@@ -278,7 +278,8 @@ struct SimpleModelHeader { // header for non-animated models (|0x80000000 in the
 struct SpyroAnimHeader;
 struct SpyroFrameInfo;
 struct SpyroModelHeader {
-	uint32 iDontNeedThis[15]; // I don't need this
+	uint32 numAnims;
+	uint32 iDontNeedThis[14]; // I don't need this
 
 	SpyroPointer<SpyroAnimHeader> anims[1];
 };

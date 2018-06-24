@@ -104,8 +104,8 @@ struct ObjTex {
 struct ObjTexMap {
 	uint16 width, height;
 
-	ObjTex textures[2048];
 	uint16 numTextures;
+	ObjTex textures[2048];
 };
 #pragma pack(pop)
 
