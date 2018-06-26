@@ -132,7 +132,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 // +0x48: State, 0x49 anim (maybe), 0x4a occlusion (related), 0x4b unknown
 // +0x50, 0x51, 0x52: (bytes) Read when enemy is flamed.
 
+bool isInit = false;
+
 void Startup() {
+	if (isInit) {
+		return;
+	}
+
 	// Register main window classes
     WNDCLASSEX wc;
 
@@ -203,10 +209,12 @@ void Startup() {
 
 	// Init online stuff
 	StartupNetwork();
+
+	isInit = false;
 }
 
 void Shutdown() {
-	for (int i = 0; i < 50; i++)
+	/*for (int i = 0; i < 50; i++)
 		vardefs[i].type = 0;
 
 	DestroyWindow(hwndEditor);
@@ -214,7 +222,7 @@ void Shutdown() {
 	DestroyWindow(hwndTexture);
 
 	UnregisterClass("SpyroLiveEditor", mainModule);
-	UnregisterClass("WindowProcStatic", mainModule);
+	UnregisterClass("WindowProcStatic", mainModule);*/
 }
 
 void CreateOnlinePage() {
@@ -249,8 +257,8 @@ void CreateTexturesPage() {
 	checkbox_autoLoad = pageScene.AddControl("BUTTON", "Automatically load mods upon level entry",  BS_AUTOCHECKBOX, 20, 260);
 
 	pageScene.AddLine();
-	button_saveAll = pageScene.AddControl("BUTTON", "Save All",  BS_PUSHBUTTON, 20, 128);
-	button_loadAll = pageScene.AddControl("BUTTON", "Load All",  BS_PUSHBUTTON, 164, 128);
+	pageScene.AddButton("Save All",  20, 128, &SaveAllMods);
+	pageScene.AddButton("Load All", 164, 128, &LoadAllMods);
 
 	pageScene.AddLine();
 	pageScene.AddGroup("Textures");
@@ -311,21 +319,17 @@ void CreateTexturesPage() {
 
 	pageScene.AddLine();
 	pageScene.AddGroup("Objects");
-	pageScene.AddButton("Save objects", 20, 128, &SaveMobys);
-	pageScene.AddButton("Load objects", 164, 128, &LoadMobys);
+	pageScene.AddButton("Save object positions", 20, 128, &SaveMobys);
+	pageScene.AddButton("Load object positions", 164, 128, &LoadMobys);
 
 	pageScene.AddLine();
 	pageScene.AddGroup("Goofy presets");
 
-	pageScene.AddButton("Colorbgone", 10, 280, &ColorlessMode);
+	pageScene.AddButton("Color-B-gone", 20, 128, &ColorlessMode);
+	pageScene.AddButton("Gratuitous Pink", 164, 128, &PinkMode);
 	pageScene.AddLine();
-	pageScene.AddButton("Gratuitous Pink", 10, 280, &PinkMode);
-	pageScene.AddLine();
-	pageScene.AddButton("Creepypasta Mode", 10, 280, &CreepypastaMode);
-	pageScene.AddLine();
-	pageScene.AddButton("Flat Palette Mode", 10, 280, &IndieMode);
-	pageScene.AddLine();
-	
+	pageScene.AddButton("Creepypasta Mode", 20, 128, &CreepypastaMode);
+	pageScene.AddButton("Flat Palette Mode", 164, 128, &IndieMode);
 	pageScene.AddLine();
 	pageScene.AddControl("STATIC", "Note: Effects may result in colour loss!", 0, 10, 350);
 	
@@ -712,17 +716,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 					disableSceneOccl = (SendMessage(checkbox_genDisableSceneOccl, BM_GETCHECK, 0, 0) == BST_CHECKED);
 				else if (control == checkbox_genDisableSkyOccl)
 					disableSkyOccl = (SendMessage(checkbox_genDisableSkyOccl, BM_GETCHECK, 0, 0) == BST_CHECKED);
-				else if (control == button_saveAll) {
-					SaveTextures();
-					SaveObjectTextures();
-					SaveColours();
-					SaveSky();
-				} else if (control == button_loadAll) {
-					LoadTextures();
-					LoadObjectTextures();
-					LoadColours();
-					LoadSky();
-				} else if (control == button_setColours) {
+				else if (control == button_setColours) {
 					LevelColours clrs;
 					char str[5] = {0,0,0,0,0};
 

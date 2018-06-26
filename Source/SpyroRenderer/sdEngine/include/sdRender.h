@@ -181,6 +181,10 @@ private:
 
 	IWICImagingFactory* wicMain;
 
+	__interface ID3D11RasterizerState* d3dRasterizerState;
+	__interface ID3D11SamplerState* d3dSamplerState;
+	__interface ID3D11BlendState* d3dBlendState;
+
 	// State variables
 	Viewport* activeViewport; // Current target viewport
 	RenderTarget* activeRenderTargets[MAXRENDERTARGETS]; // Current render targets, overlaps with viewport most of the time
@@ -218,8 +222,6 @@ private:
 	ShaderSet* defaultShaderSets[NUMVERTTYPES]; // contains shader sets for each default vertex type (VT_*)
 	VertexFormat* defaultVertexFormats[NUMVERTTYPES]; // contains pointers to the vertex formats of the reserved default shaders
 	uint32 defaultVertexStrides[NUMVERTTYPES]; // contains the sizes of vertices by their type
-
-	ID3D11SamplerState* testSampler;
 
 	// List of resources linked to this renderer
 	Array<RendererResource*> resources;

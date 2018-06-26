@@ -35,6 +35,10 @@ struct SpyroPointer {
 		address = 0x80000000 | ((uintptr)address - (uintptr)umem32);
 	}
 
+	bool IsValid() const {
+		return (address & ~0x80000000) > 0x00001000 && (address & ~0x80000000) < 0x00200000;
+	}
+
 	inline operator PointerType*() {
 		if (address & 0x003FFFFF) {
 			return (PointerType*) ((uintptr)umem32 + (address & 0x003FFFFF));
@@ -58,7 +62,11 @@ struct SpyroPointer {
 
 	template <typename T>
 	inline explicit operator T*() {
-		return (T*) ((uintptr)umem32 + (address & 0x003FFFFF));
+		if (address & 0x003FFFFF) {
+			return (T*) ((uintptr)umem32 + (address & 0x003FFFFF));
+		} else {
+			return nullptr;
+		}
 	}
 };
 
@@ -535,6 +543,12 @@ void LoadSky(const char* customFilename = 0); // loads the sky model
 void SaveColours(); // saves level colours--this might need changing once level geometry is replaceable
 void LoadColours(); // loads level colours--this might need changing once level geometry is replaceable
 
+void SaveMobys(); // saves moby positions (but not ordering, IDs etc--might not be cross-version-compatible)
+void LoadMobys();
+
+void SaveAllMods();
+void LoadAllMods();
+
 void SetLevelColours(LevelColours* clrsIn); // tweaks level colours based on a colour multiplier
 void GetLevelColours(LevelColours* clrsOut); // obtains level colours (does this even work? I forget)
 
@@ -553,6 +567,8 @@ void GenerateLQTextures(); // auto-generated LQ textures from HQ textures
 void CompleteLQPalettes(); // I forget
 
 void MakePaletteFromColours(uint32* paletteOut, int desiredPaletteSize, uint32* colours, int numColours); // takes a full set of colours and makes a palette of desired size
+
+bool IsModelValid(int modelId, int animIndex = -1);
 
 float ToRad(int8 angle);
 int8 ToAngle(float rad);

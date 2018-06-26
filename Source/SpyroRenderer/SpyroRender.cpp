@@ -183,6 +183,7 @@ void Open() {
 
 	if (!gameStates) {
 		gameStates = (GameState*) malloc(sizeof (GameState) * numGameStates);
+		memset(gameStates, 0, sizeof (GameState) * numGameStates);
 		// Note: gameStates should be freed on Close, but for some reason if that is done the game can't realloc it
 	}
 
@@ -308,10 +309,10 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 		GameState* latestGameState = &gameStates[0];
 
 		if (numGameStates > 1) {
-			for (int i = 0; i < numGameStates; i++) {
-				if (gameStates[i].time <= renderTime && gameStates[(i + 1) % numGameStates].time >= renderTime) {
+			for (int i = 0; i < numGameStates; i+=2) {
+				if (gameStates[i].time <= renderTime && gameStates[(i + 2) % numGameStates].time >= renderTime) {
 					curGameState = &gameStates[i];
-					nextGameState = &gameStates[(i + 1) % numGameStates];
+					nextGameState = &gameStates[(i + 2) % numGameStates];
 					gameStateFactor = (float) (renderTime - curGameState->time) / (float) (nextGameState->time - curGameState->time);
 				}
 			}
@@ -324,7 +325,7 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 			continue;
 		}
 
-		// Render
+		// Render the game!
 		if (vpMain && spyro) {
 			draw.BeginScene();
 			float camAng = LerpAngle(curGameState->camera.hAngle, nextGameState->camera.hAngle, gameStateFactor);;
@@ -365,7 +366,7 @@ void UpdateScene() {
 
 	for (int s = 0; s < sceneData->numSectors; s++) {
 		SceneSectorHeader* sector = sceneData->sectors[s];
-		Model drawModel;
+		Model& drawModel = lerpScene.sectors[s];
 		Vec3* verts = drawModel.verts;
 		uint32* colours = drawModel.colours;
 
@@ -410,8 +411,10 @@ void UpdateScene() {
 				numTriangles += 2;
 		}
 
-		if (!numTriangles)
+		if (!numTriangles) {
+			drawModel.numFaces = 0;
 			continue;
+		}
 
 		// Make face
 		CTVertex buf[4096];
@@ -467,7 +470,6 @@ void UpdateScene() {
 			}
 		}
 
-		lerpScene.sectors[s] = drawModel;
 		lerpScene.sectors[s].numVerts = sector->numHpVertices;
 		lerpScene.sectors[s].numFaces = sector->numHpFaces;
 		lerpScene.sectors[s].numColours = sector->numHpColours;
@@ -507,7 +509,7 @@ bool UpdateMoby(int mobyId, float x, float y, float z) {
 	int mobyModelId = mobys[mobyId].type;
 	if (mobyModelId >= 768 || mobyModelId == 0)
 		return false;
-	if (!mobyModels[mobyModelId].address || (mobyModels[mobyModelId].address & 0x7FFFFFFF) >= 0x001FFF00)
+	if (!IsModelValid(mobyModelId, mobys[mobyId].anim.prevAnim))
 		return false;
 	
 	// NEW CONDITIONS:
@@ -517,12 +519,6 @@ bool UpdateMoby(int mobyId, float x, float y, float z) {
 	uint32 modelAddress = mobyModels[mobyModelId].address & 0x003FFFFF;
 	bool animated = (mobyModels[mobyModelId].address & 0x80000000);
 
-	if ((umem32[modelAddress/4] & 0xFFFFFF00) || !umem32[modelAddress/4] || 
-		(!animated && (umem32[modelAddress/4+4] >> 24 != 0x80 || umem32[modelAddress/4+5] >> 24 != 0x80)) ||
-		(animated && (umem32[modelAddress/4+13] >> 24 != 0x80 || umem32[modelAddress/4+14] >> 24 != 0x80 || umem32[modelAddress/4+15] >> 24 != 0x80) && mobyModelId > 0) || 
-		(mobyModelId == 0 && (umem32[modelAddress/4+15] >> 24 != 0x80 || umem32[modelAddress/4+14] != 0x1714)))
-			return false;
-
 	float scale = MOBYPOSSCALE;
 	uint32* verts, *faces, *colours;
 	int numVerts, numColours;
@@ -531,15 +527,23 @@ bool UpdateMoby(int mobyId, float x, float y, float z) {
 		ModelHeader* model = mobyModels[mobyModelId];
 		ModelAnimHeader* anim = model->anims[mobys[mobyId].anim.nextAnim];
 
+		if (mobys[mobyId].anim.nextAnim > model->numAnims || !model->anims[mobys[mobyId].anim.nextAnim].IsValid()) {
+			return false;
+		}
+
 		verts = anim->verts; faces = anim->faces; colours = anim->colours;
 		numVerts = anim->numVerts; numColours = anim->numColours;
 
-		scale = (float) (MOBYPOSSCALE) * ((float) (anim->vertScale + 1));
+		scale = (float) (MOBYPOSSCALE) * ((float) (1 << anim->vertScale));
+
+		if (mobys[mobyId].scaleDown) {
+			scale *= 32.0f / (float)mobys[mobyId].scaleDown;
+		}
 	} else {
 		SimpleModelHeader* model = (SimpleModelHeader*) (mobyModels[mobyModelId]);
 		SimpleModelStateHeader* state = model->states[mobys[mobyId].anim.prevAnim];
 
-		if (mobys[mobyId].anim.prevAnim >= model->numStates)
+		if (mobys[mobyId].anim.prevAnim >= model->numStates || !model->states[mobys[mobyId].anim.prevAnim].IsValid())
 			return false;
 
 		verts = state->data32; faces = &state->data32[(state->hpFaceOff - 16) / 4]; colours = &state->data32[(state->hpColourOff - 16) / 4];
@@ -610,7 +614,7 @@ bool UpdateMoby(int mobyId, float x, float y, float z) {
 }
 
 void UpdateSpyro() {
-	if (!spyro || !mobyModels[0].address)
+	if (!spyro || !IsModelValid(0, spyro->anim.nextAnim))
 		return;
 
 	SpyroModelHeader* model = (SpyroModelHeader*)mobyModels[0];
@@ -684,7 +688,7 @@ void UpdateSpyro() {
 void DrawScene() {
 	draw.SetTextures(ST_PIXEL, 0, 1, &sceneTex);
 	for (int i = 0; i < lerpScene.numSectors; i++) {
-		DrawModel(&lerpScene.sectors[i], NULL);
+		DrawModel(&lerpScene.sectors[i], NULL);;
 	}
 }
 
@@ -775,11 +779,11 @@ void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uin
 				// Short block
 				if (isSpyro) {
 					curX += bitss(blocks[curBlock], 9, 7);
-					curY -= (bitss(blocks[curBlock], 4, 7) + 1);
+					curY -= bitss(blocks[curBlock], 4, 7);
 					curZ -= bitss(blocks[curBlock], 1, 5) * 4;
 				} else {
-					curX += bitss(blocks[curBlock], 10, 6) * 2 + 1;
-					curY += bitss(blocks[curBlock], 5, 6) * 2 + 1;
+					curX += bitss(blocks[curBlock], 10, 6) * 2;
+					curY += bitss(blocks[curBlock], 5, 6) * 2;
 					curZ += bitss(blocks[curBlock], 1, 5) * 2;
 				}
 
@@ -790,26 +794,20 @@ void ConvertAnimatedVertices(Model* modelOut, uint32* verts, uint16* blocks, uin
 		}
 
 		if (!usedBlock && !blockVert) {
-			if (!isSpyro) {
-				uint32 adjust = mobyVertAdjustTable[(adjusts[adjustVert] >> 1)];
-				int aX = bitss(adjust, 21, 11), aY = bitss(adjust, 10, 11), aZ = bitss(adjust, 0, 10);
+			int32 adjusted = mobyVertAdjustTable[(adjusts[adjustVert] >> 1)] + verts[i];
 
-				if (adjusts[adjustVert] & 1)
-					nextBlock = true;
+			if (adjusts[adjustVert] & 1)
+				nextBlock = true;
 
-				x += aX; y += aY; z += aZ;
-				adjustVert++;
-			} else {
-				int32 adjusted = mobyVertAdjustTable[(adjusts[adjustVert] >> 1)] + verts[i];
-
-				if (adjusts[adjustVert] & 1)
-					nextBlock = true;
-
-				x = bitss(adjusted, 21, 11);
-				y = bitss(adjusted, 10, 11);
-				z = bitss(adjusted, 0, 10) * 2;
-				adjustVert++;
+			x = bitss(adjusted, 21, 11);
+			y = bitss(adjusted, 10, 11);
+			z = bitss(adjusted, 0, 10);
+			
+			if (isSpyro) {
+				z *= 2;
 			}
+
+			adjustVert++;
 		}
 
 		if (isSpyro) {
@@ -878,7 +876,7 @@ void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool is
 			}
 		}
 
-		if ((clrs & 2)) {
+		if ((clrs & 1) && 0) {
 			// Just use this colour for now (todo shinyness, etc)
 			drawFace->colours[0] = drawFace->colours[1] = drawFace->colours[2] = drawFace->colours[3] = uniqueColourIndex;
 		}
@@ -1000,53 +998,6 @@ void UpdateTextures() {
 	if (!textures && !hqTextures)
 		return;
 	
-	uint8* vram8 = vram.GetVram8();
-	uint16* vram16 = vram.GetVram16();
-
-	numTexCaches = *numTextures;
-	for (int i = 0; i < *numTextures; i++) {
-		TexHq* curHq = textures ? textures[i].hqData : hqTextures[i].hqData;
-		TexLq* curLq = textures ? textures[i].lqData : lqTextures[i].lqData;
-
-		texCaches[i].Reset();
-
-		for (int tile = 0; tile < 4; tile++) {
-			int paletteByteStart = curHq[tile].palette * 32;
-			uint16* palette = &vram16[paletteByteStart / 2];
-			int numTilesDone = 0;
-			uint32 colours[256];
-			TexCacheTile* tileCache = &texCaches[i].tiles[tile];
-
-			// Read palette data
-			for (int j = 0; j < 256; j++)
-				colours[j] = MAKECOLOR32(GETR16(palette[j]), GETG16(palette[j]), GETB16(palette[j]));
-
-			int orientation = curHq[tile].unknown>>4 & 7;
-			int xx = tileMatrices[orientation].xx, xy = tileMatrices[orientation].xy;
-			int yx = tileMatrices[orientation].yx, yy = tileMatrices[orientation].yy;
-			int srcXStart = curHq[tile].GetXMin(), srcYStart = curHq[tile].GetYMin();
-			int xAdd = 0, yAdd = 0;
-
-			if (xx < 0 || xy < 0)
-				xAdd = 31;
-			if (yx < 0 || yy < 0)
-				yAdd = 31;
-
-			// Read colours into cache tile
-			for (int y = 0; y < 32; y++) {
-				for (int x = 0; x < 32; x++)
-					tileCache->bitmap[(x * yx + y * yy + yAdd) * 32 + x * xx + y * xy + xAdd] = colours[vram8[(y + srcYStart) * 2048 + srcXStart + x]];
-			}
-
-			tileCache->minX = curHq[tile].GetXMin();
-			tileCache->maxX = curHq[tile].GetXMax();
-			tileCache->minY = curHq[tile].GetYMin();
-			tileCache->maxY = curHq[tile].GetYMax();
-			tileCache->sizeX = tileCache->maxX - tileCache->minX + 1;
-			tileCache->sizeY = tileCache->maxY - tileCache->minY + 1;
-		}
-	}
-
 	// Load the texture
 	char filename[MAX_PATH];
 	wchar filenameW[MAX_PATH];

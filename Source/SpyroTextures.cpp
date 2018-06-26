@@ -1161,6 +1161,10 @@ void UpdatePaletteList() {
 }
 
 void UpdateObjTexMap() {
+	if (!mobyModels) {
+		return;
+	}
+
 	const int vramWidth = 1024, vramHeight = 512; // vram dimensions in u16s
 	
 	// Reset texmap vars
@@ -1170,25 +1174,22 @@ void UpdateObjTexMap() {
 
 	// Read texture data from object models in scene
 	for (int i = 0; i < 768; i++) {
-		uint32 modelAddress = mobyModels[i].address;
-		bool hasAnims = (modelAddress & 0x80000000) != 0;
-		if (!modelAddress)
+		if (!IsModelValid(i, 0)) {
 			continue;
+		}
 
-		modelAddress &= 0x003FFFFF;
-		if ((umem32[modelAddress/4] & 0xFFFFFF00) || !umem32[modelAddress/4] || 
-			(!hasAnims && (umem32[modelAddress/4+4] >> 24 != 0x80 || umem32[modelAddress/4+5] >> 24 != 0x80)) ||
-			(hasAnims && (umem32[modelAddress/4+13] >> 24 != 0x80 || umem32[modelAddress/4+14] >> 24 != 0x80 || umem32[modelAddress/4+15] >> 24 != 0x80) && i > 0) || 
-			(i == 0 && (umem32[modelAddress/4+15] >> 24 != 0x80)))
-			continue;
+		bool hasAnims = (mobyModels[i].address & 0x80000000) != 0;
 
 		uint32* faces;
 		if (hasAnims && i != 0)
-			faces = &umem32[(umem32[modelAddress/4+14] & 0x003FFFFF) / 4];
+			faces = ((ModelHeader*)mobyModels[i])->anims[0]->faces;
 		else if (!hasAnims)
-			faces = &umem32[(umem32[modelAddress/4+4] & 0x003FFFFF) / 4];
+			faces = ((SimpleModelHeader*)mobyModels[i])->faces;
 		else if (i == 0)
 			faces = ((SpyroModelHeader*)mobyModels[0])->anims[0]->faces;
+
+		if (!faces)
+			continue;
 
 		int faceIndex = 1;
 		uint32 maxIndex = faces[0] / 4 + 1;

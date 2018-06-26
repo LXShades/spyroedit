@@ -323,7 +323,7 @@ void LoadRouteGPU() {
 	if (route_GPU_module == NULL) {
 		route_GPU_module = LoadLibrary(".\\SPYRO3GPU.dll");
 		if (route_GPU_module == NULL) {
-			MessageBox(NULL, "[Spyro 3 Live Editor] Failed to load GPU.\n\n"
+			MessageBox(NULL, "[SpyroEdit] Failed to load GPU.\n\n"
 				"GPU plugin should be in 'plugins\\SPYRO3GPU.dll'", "", MB_OK);
 
 			return;
@@ -351,8 +351,6 @@ void LoadRouteGPU() {
 	LOADROUTE(GPUsetMode,       (void          (__stdcall*)(unsigned long)));
 	LOADROUTE(GPUgetMode,       (long          (__stdcall*)()));
 	LOADROUTE(GPUconfigure,     (long          (__stdcall*)()));
-
-	route_GPUinit();
 }
 
 }

@@ -25,6 +25,7 @@ void *wadstart;
 int32* level;
 int32 lastLevel;
 uint8* levelArea;
+uint8 lastLevelArea;
 SpyroGameState gameState;
 SpyroGameState lastGameState;
 
@@ -105,11 +106,14 @@ void SpyroLoop() {
 	}
 
 	if ((gameState == GAMESTATE_INLEVEL || gameState == GAMESTATE_POSTLOADINGLEVEL || gameState == GAMESTATE_PAUSED) && 
-		(((lastGameState == GAMESTATE_LOADINGLEVEL || lastGameState == GAMESTATE_LOADINGMINIGAME)) || (level && *level != lastLevel) || texturesChanged)) {
+		(((lastGameState == GAMESTATE_LOADINGLEVEL || lastGameState == GAMESTATE_LOADINGMINIGAME)) || (level && *level != lastLevel) || texturesChanged) 
+		/*|| levelArea && *levelArea != lastLevelArea*/) {
 		SpyroOnLevelEntry();
 
 		if (level)
 			lastLevel = *level;
+		if (levelArea)
+			lastLevelArea = *levelArea;
 	}
 
 	// Do main loop
@@ -1049,6 +1053,22 @@ void LoadColours() {
 	CloseHandle(clrIn);
 }
 
+void SaveAllMods() {
+	SaveTextures();
+	SaveObjectTextures();
+	SaveColours();
+	SaveSky();
+	SaveMobys();
+}
+
+void LoadAllMods() {
+	LoadTextures();
+	LoadObjectTextures();
+	LoadColours();
+	LoadSky();
+	LoadMobys();
+}
+
 void SetLevelColours(LevelColours* clrsIn) {
 	if (!scene.spyroScene)
 		return;
@@ -1419,6 +1439,55 @@ int8 ToAngle(float rad) {
 	return *(int8*) &uAngle;
 }
 
+bool IsModelValid(int modelId, int animIndex) {
+	if (!mobyModels || !mobyModels[modelId].address || !mobyModels[modelId].IsValid())
+		return false;
+
+	if (modelId == 0) {
+		SpyroModelHeader* spyroModel = (SpyroModelHeader*)mobyModels[modelId];
+
+		if (spyroModel->numAnims > 0x00000100)
+			return false;
+
+		if (animIndex != -1) {
+			if (animIndex > spyroModel->numAnims)
+				return false;
+
+			if (!spyroModel->anims[animIndex]->data.IsValid() || !spyroModel->anims[animIndex]->verts.IsValid() || !spyroModel->anims[animIndex]->faces.IsValid())
+				return false;
+
+			if (spyroModel->anims[animIndex]->faces[0] >= 0x00010000)
+				return false;
+		}
+	} else if (mobyModels[modelId].address & 0x80000000) {
+		ModelHeader* model = (ModelHeader*)mobyModels[modelId];
+
+		if (model->numAnims > 50)
+			return false;
+
+		if (animIndex != -1) {
+			if (animIndex > model->numAnims)
+				return false;
+
+			if (!model->anims[animIndex].IsValid())
+				return false;
+
+			if (!model->anims[animIndex]->faces.IsValid() || !model->anims[animIndex]->data.IsValid())
+				return false;
+
+			if (model->anims[animIndex]->faces[0] >= 0x00010000)
+				return false;
+		}
+	} else {
+		SimpleModelHeader* model = (SimpleModelHeader*)mobyModels[modelId];
+
+		if (model->numStates > 50)
+			return false;
+	}
+
+	return true;
+}
+
 void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool createFolders) {
 	const char* levelName = "*UnknownLevel*";
 	char rootDir[MAX_PATH];
@@ -1452,9 +1521,9 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Textures LQ\\", rootDir, levelName); break;
 		case SEF_OBJTEXTURES:
 			if (levelArea && levelArea > 0) {
-				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Object Textures (Area %i).bmp", rootDir, levelName, *levelArea); break;
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\ObjectTexturesArea%i.bmp", rootDir, levelName, *levelArea); break;
 			} else {
-				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Object Textures.bmp", rootDir, levelName); break;
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\ObjectTextures.bmp", rootDir, levelName); break;
 			}
 		case SEF_RENDERTEXTURES:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\RenderTextures.bmp", rootDir, levelName); break;
@@ -1471,7 +1540,11 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 		case SEF_GEOMETRY:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Geometry.geo", rootDir, levelName); break;
 		case SEF_MOBYLAYOUT:
-			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Objects.mby", rootDir, levelName); break;
+			if (levelArea && levelArea > 0) {
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\ObjectsArea%i.mby", rootDir, levelName, *levelArea); break;
+			} else {
+				sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Objects.mby", rootDir, levelName); break;
+			}
 		case SEF_SETTINGS:
 			sprintf(filenameOut, "%s\\SpyroEdit\\%s\\Settings.ini", rootDir, levelName); break;
 		default:
