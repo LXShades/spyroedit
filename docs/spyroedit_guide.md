@@ -1,4 +1,4 @@
-# SpyroEdit!
+﻿# SpyroEdit!
 SpyroEdit is an old PS1 emulator plugin I made specifically for Spyro 2 and 3 many years back. Initially made for simplifying small hacking tasks, like finding secret butterfly jars, finding hidden animations and tinkering with game objects, it has since expanded greatly to include some pretty nifty features such as custom level textures, wacky powers like the Headbashpocalypse (with or without a death wave of doom, or a doom wave of death, yep even the name is customisable! Well not really), object extraction and viewing in full 3D via Genesis, and limited level editing via Genesis.  
 
 # Setting up
@@ -11,43 +11,8 @@ If all goes well, when you run your emulator SpyroEdit 2.1 should now show up in
 **Warning**: Some users experience an odd fatal error ‘cannot load GPU plugin’. To alleviate this try any or all of the following: a) rename gpuSpyroEdit to something shorter, such as just gpu; b) make sure a firewall or AV isn’t blocking SpyroEdit from running, c) running the emulator in Administrator mode, or d) redownloading SpyroEdit.  
 
 # Main interface
-## Objects
-The Objects tab enables you to view and edit various numbered parameters of the objects in the environment. Each parameter can be edited as either an integer (normal number) or hex number.  
-
-Probably the best way to learn what each parameter means (some are object type-specific) is to find an object of interest, such as an enemy or NPC, hit the Find Nearby Object button, identify the object of interest and check the Auto-update checkbox. If you’re not sure which object you’re looking at, one way to check is to increment its Z by maybe 1000, and see which object moves up.
-
-**Object ID:** This is the 0-based number of the object you’re currently editing. Every object has an ID. Some objects are ‘dead’: Objects with a negative ‘state’ parameter are usually considered deleted and may eventually be replaced by a new object. It’s not recommended to destroy objects this way however due to a possible (emulated) memory leak.
-**Set values:** Applies any changes you’ve made to the object.
-**Get values:** Retrieves information about the object’s state
-**Auto-update:** Automatically updates the parameters, except for the last parameter that you edited (this is to allow you to change it without it constantly being replaced).
-**Drag with Spyro:** Tick this box to force the object to follow you.
-**Next type:** [Broken] May check the list of available object types and change the object’s type to the next.
-**Prev type:** [Broken] Ditto, but for the previous type.
-**Find Nearby Objects:** Shows a messagebox displaying all objects close to Spyro. The format shown is [Object ID]: Type [Object type in decimal]/[Object type in hex] ([Alive or Dead])
-
-## MultiSpyro
-This tab allows you to connect to another player and see them. To do this, two things are needed:  
-
-* One player must be the Host, which, if behind a router, requires that they forward UDP port 2012  
-* You must have the Host’s IP  
-
-Most network setup problems are the result of routers and firewalls. Make sure they are all configured appropriately when trying to use this mode.  
-
-**IP box:** If Joining, insert the IP address of the host here. If hosting, you can leave this.  
-**Host:** Host the session.
-**Join:** Join the session at the IP address in the box above.
-
-In MultiSpyro, you can see other players and some of their powers. As a warning most physical actions are entirely unsynchronised. The effect for the most part is purely visual and doesn’t amount to a full multiplayer Spyro experience--unless you’re creative.  
-
-## Powers
-Powers tab! If you're playing Spyro 2 or Spyro 3 (with some exceptions), you can use powers!  
-
-There is no guide to powers. It is your destiny alone. Experiment and Be the Chosen One.  
-
-Powers marked ‘S3’ work on Spyro 3 only. Powers marked with ‘S3PAL’ work on Spyro 3 PAL only.  
-
-## Scene (How-to) ##
-This is where you can edit the textures, skies and colours of a level. In this version of SpyroEdit, files are stored in the folder SpyroEdit/[Name of level]. Individual textures are stored in SpyroEdit/[Name of level]/Textures [HQ/LQ].  
+## Mods (How-to) ##
+This is where you can edit the textures, skies, colours, and object placements of a level. In this version of SpyroEdit, files are stored in the folder SpyroEdit/[Name of level]. Individual textures are stored in SpyroEdit/[Name of level]/Textures [HQ/LQ].  
 
 ### Textures ###
 Editing Spyro textures is as simple as saving the textures, locating them in their level folder, and then loading them. Make sure the game is unpaused while you do either of these, as pausing the game can overwrite the VRAM.  
@@ -87,6 +52,13 @@ The three-box parameters for tweaks are red/green/blue factors in percentage. 10
 ### Autoload ###
 Autoload on level entry: If checked, SpyroEdit will load the textures, colours, etc from a level’s folder when you enter it.  
 
+## Powers
+The Powers tab! If you're playing Spyro 2 or Spyro 3 (with some exceptions), you can use powers!  
+
+There is no guide to powers. It is your destiny alone. Experiment and Be the Chosen One.  
+
+Powers marked ‘S3’ work on Spyro 3 only. Powers marked with ‘S3PAL’ work on Spyro 3 PAL only.  
+
 ## Genesis ##
 Ah, the oversaturated Genesis tab! This is what you use to connect with Genesis.  
 
@@ -95,12 +67,40 @@ I don't words.
 **Connect:** Connects to Genesis, usually locally. (It may also be possible to connect over the Internet, but it's been a long time since I've touched that!)  
 **Send Scene:** Sends the level geometry to Genesis.  
 **Reset Scene:** Tries to revert the scene to its original state when you entered the level.  
-**Send Spyro:** Not used.
+**Send Spyro:** Sends Spyro's position and model to Genesis.
 **Send Collision:** Sends the collision mesh to Genesis. The collision mesh is unaffected by any edits you make.  
 **Send Object:** Sends the model of the currently selected object in the Objects tab, on its current animation frame.  
 **Send All Objects:** Sends the models and positions of every living object in the level.  
 **Rebuild Colltree:** Refreshes the collision octree. SpyroEdit usually does this automatically.  
 **Regen Colltris:** SpyroEdit will attempt to regenerate the entire level's collision by assigning all collision triangles to as many scenery polygons as possible. Lower places are prioritised; higher places may be missing triangles. This may mix up portals, surfaces, etc. I only added this to make it possible to add geometry in Genesis without clipping through it. All in all, an unrecommended, Big, Shiny Red Button. Do Not Press  
+
+## Objects
+The Objects tab enables you to view and edit various numbered parameters of the objects in the environment. Each parameter can be edited as either an integer (normal number) or hex number.  
+
+Probably the best way to learn what each parameter means (some are object type-specific) is to find an object of interest, such as an enemy or NPC, hit the Find Nearby Object button, identify the object of interest and check the Auto-update checkbox. If you’re not sure which object you’re looking at, one way to check is to increment its Z by maybe 1000, and see which object moves up.
+
+**Object ID:** This is the 0-based number of the object you’re currently editing. Every object has an ID. Some objects are ‘dead’: Objects with a negative ‘state’ parameter are usually considered deleted and may eventually be replaced by a new object. It’s not recommended to destroy objects this way however due to a possible (emulated) memory leak.
+**Set values:** Applies any changes you’ve made to the object.
+**Get values:** Retrieves information about the object’s state
+**Auto-update:** Automatically updates the parameters, except for the last parameter that you edited (this is to allow you to change it without it constantly being replaced).
+**Drag with Spyro:** Tick this box to force the object to follow you.
+**Next type:** [Broken] May check the list of available object types and change the object’s type to the next.
+**Prev type:** [Broken] Ditto, but for the previous type.
+**Find Nearby Objects:** Shows a messagebox displaying all objects close to Spyro. The format shown is [Object ID]: Type [Object type in decimal]/[Object type in hex] ([Alive or Dead])
+
+## Online
+This tab allows you to connect to another player and see them. To do this, two things are needed:  
+
+* One player must be the Host, which, if behind a router, requires that they forward UDP port 18541  
+* You must have the Host’s IP  
+
+Most network setup problems are the result of routers and firewalls. Make sure they are all configured appropriately when trying to use this mode.  
+
+**IP box:** If Joining, insert the IP address of the host here. If hosting, you can leave this.  
+**Host:** Host the session.
+**Join:** Join the session at the IP address in the box above.
+
+In Online MultiSpyro, you can see other players and some of their powers. As a warning most physical actions are entirely unsynchronised. The effect for the most part is purely visual and doesn’t amount to a full multiplayer Spyro experience--unless you’re creative.  
 
 ## Status ##
 This tab lists all of the required game memory addresses (which may be usable in GameShark codes) detected by SpyroEdit.  
@@ -114,3 +114,8 @@ This feature is for advanced users/hackers, so it won’t be covered in much det
 Summary of controls:
 Space (hold): Change active palette to mouse position (8-pixel-aligned)
 Up/Down/Left/Right arrow: Fine-tune the position of the palette (needed for some palettes, but not most)
+
+## Render ##
+The Render tab enables an experimental feature where SpyroEdit renders the game in a separate window, in high definition with an unlocked framerate. Give it a try! Note that for some emulators, you may need to keep the main emulator window highlighted and moved out of the way in order to control Spyro.  
+
+When the level loads, the Renderer creates and uses its own texture files in the level folder. You can replace these or even scale them up if you like--just make sure it's scaled proportionally! If you experience errors, delete them, and the renderer will regenerate them when you reenter the level. Object texture errors are common.  

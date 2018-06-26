@@ -436,8 +436,6 @@ void SendLiveGenSpyro() {
 		live->SendState(objList[i]->GetState(GENCOMMON_MULTIPLE));
 		objList[i]->ValidateAll();
 	}
-
-	live->SendState(spyroInst->GetState(GENCOMMON_MULTIPLE));
 }
 
 uint32 FindFreeMemory(int sectorSize) {
