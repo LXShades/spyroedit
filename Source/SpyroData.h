@@ -366,6 +366,7 @@ public:
 		if (address) {
 			if (game == SPYRO1) {
 				numTriangles = s1->numTriangles;
+				triangles = s1->triangleData;
 				blockTree = s1->blockTree;
 				blocks = s1->blocks;
 			} else {

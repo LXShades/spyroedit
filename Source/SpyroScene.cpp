@@ -809,11 +809,13 @@ void Scene::Cleanup() {
 }
 
 void Scene::SpyroSceneCache::CopySnapshot(const SpyroSceneHeader* sourceScene) {
+	uint32 sceneSize = game == SPYRO1 ? sourceScene->iForget : sourceScene->size;
+
 	delete this->scene;
-	this->scene = (SpyroSceneHeader*)operator new(sourceScene->size);
+	this->scene = (SpyroSceneHeader*)operator new(sceneSize);
 
 	// Todo: Check all addresses, making sure they're within range of the data block, and that the size of the data block is actually valid?
-	memcpy(this->scene, sourceScene, sourceScene->size);
+	memcpy(this->scene, sourceScene, sceneSize);
 }
 
 void Scene::SpyroSceneCache::PasteSnapshot(SpyroSceneHeader* destScene) {
