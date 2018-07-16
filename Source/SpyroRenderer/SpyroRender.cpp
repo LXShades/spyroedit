@@ -782,8 +782,8 @@ void UpdateSky() {
 				curModelFace->colours[side] = colours[side];
 				curModelFace->u[side] = curModelFace->v[side] = blankUv;
 			}
-
 			++curModelFace;
+
 			for (int tri = 0; tri < numExtraTriangles; ++tri) {
 				colours[3 + tri] = bitsu(*curFaceBlock, 8, 7);
 				positions[3 + tri] = bitsu(*curFaceBlock, 0, 8);
@@ -843,7 +843,7 @@ void DrawMobys() {
 	draw.SetTextures(ST_PIXEL, 0, 1, &objTex);
 
 	for (int i = 0; i < curGameState->numMobys && i < nextGameState->numMobys; i++) {
-		if (!curGameState->mobys[i].visible)
+		if (!curGameState->mobys[i].visible || !nextGameState->mobys[i].visible)
 			continue;
 
 		Model tempModel = curGameState->mobys[i].model;
@@ -1015,12 +1015,6 @@ void ConvertFaces(Model* modelOut, uint32* faces, int uniqueColourIndex, bool is
 			drawFace->colours[0] = clrs >> 24 & 0x7F;
 			drawFace->colours[1] = clrs >> 17 & 0x7F;
 			drawFace->colours[2] = clrs >> 10 & 0x7F;
-
-			if (isSpyro) {
-				drawFace->colours[0] = clrs >> 24 & 0x7F;
-				drawFace->colours[1] = clrs >> 17 & 0x7F;
-				drawFace->colours[2] = clrs >> 10 & 0x7F;
-			}
 		}
 
 		if ((clrs & 1) && 0) {

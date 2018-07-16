@@ -81,6 +81,12 @@ void BuildGenMobyModel(uint32 mobyModelId, uint32 animId, uint32 animFrameIndex)
 		mod->SetProperty("spyroModelType", GenValueSet("animated"));
 	} else {
 		int size = (((SimpleModelHeader*)mobyModels[mobyModelId])->unkExtra & 0x003FFFFF) - (mobyModels[mobyModelId].address & 0x003FFFFF);
+
+		// Sometimes unkExtra isn't actually the size, so double-check here
+		if (size <= 0 || size > 128000) {
+			size = ((SimpleModelHeader*)mobyModels[mobyModelId])->GetSize();
+		}
+
 		if (size >= 0 && size < 128000) {
 			modelData.numValues = size;
 			modelData.type = GENTYPE_RAW;

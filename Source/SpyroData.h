@@ -47,6 +47,14 @@ struct SpyroPointer {
 		}
 	}
 
+	inline operator const PointerType*() const {
+		if (address & 0x003FFFFF) {
+			return (PointerType*) ((uintptr)umem32 + (address & 0x003FFFFF));
+		} else {
+			return nullptr;
+		}
+	}
+
 	inline SpyroPointer operator=(PointerType* pointer) {
 		address = ((uintptr)pointer - (uintptr)umem32) | 0x80000000;
 		return *this;
@@ -57,6 +65,10 @@ struct SpyroPointer {
 	}
 
 	inline PointerType** operator&() {
+		return (PointerType**)this;
+	}
+
+	inline const PointerType** operator&() const {
 		return (PointerType**)this;
 	}
 
@@ -318,6 +330,22 @@ struct SimpleModelHeader { // header for non-animated models (|0x80000000 in the
 	uint32 unkZero;
 	SpyroPointer<uint32> faces; // pointer to the default faces w/ the same formatting as animated models
 	SpyroPointer<SimpleModelStateHeader> states[1]; // expandable array of pointers to each model state (may be more than 1)
+
+	// Estimates the size of the model. Unreliable due to lack of LP support
+	int GetSize() const {
+		uintptr highestPtr = (uintptr)&faces[faces[0] / 4];
+		auto expandPtr = [&](uintptr address){if (address > highestPtr) highestPtr = address;};
+
+		for (int s = 0; s < numStates; ++s) {
+			const SimpleModelStateHeader* state = states[s];
+
+			expandPtr((uintptr)&state->data8[state->hpFaceOff - 16] + state->data32[(state->hpFaceOff - 16) / 4]);
+			expandPtr((uintptr)&state->data8[state->hpColourOff - 16] + state->numHpColours * 4);
+			expandPtr((uintptr)&state->data32[state->numHpVerts]);
+		}
+
+		return highestPtr - (uintptr)this;
+	}
 };
 
 struct SpyroAnimHeader;
