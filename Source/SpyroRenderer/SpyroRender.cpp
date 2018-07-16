@@ -96,9 +96,10 @@ GameState* gameStates;
 GameState* curGameState;
 GameState* nextGameState;
 GameState* writeGameState = 0;
-const int numGameStates = 10;
+const int numGameStates = 15;
 float gameStateFactor; // blend factor between current and last game state
-const int gameStateDelay = 90; // visible gamestate delay in ms. numGameStates must be large enough to support the number of gamestates required to buffer this much time.
+const int gameStateDelay = 10; // visible gamestate delay in ms. numGameStates must be large enough to support the number of gamestates required to buffer this much time.
+const int gameStateInterval = 1; // Interval between gamestates to interpolate. Affects gameStateDelay
 
 const uint32 mobyVertAdjustTable[127] = {
 	0xFE9FD3FA, 0xFF5FD3FA, 0x001FD3FA, 0x00DFD3FA, 0x019FD3FA, 0xFE9FEBFA, 0xFF5FEBFA, 0x001FEBFA, 0x00DFEBFA, 0x019FEBFA, 0xFE8003FA, 0xFF4003FA, 0x000003FA, 0x00C003FA,
@@ -296,10 +297,7 @@ void OnUpdateLace() {
 	if (spyro && mobyModels)
 		UpdateSpyro();
 
-	if (spyroSky)
-		UpdateSky();
-
-	if(spyroEffects)
+	if (spyroEffects)
 		UpdateEffects();
 
 	//if ((interval & 63) == 0)
@@ -331,16 +329,16 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 		updatingRender = true;
 
 		// Determine the current game state and interpolation
-		uint32 renderTime = Sys::GetTime() - gameStateDelay;
+		uint32 renderTime = Sys::GetTime() - gameStateDelay - gameStateInterval * 1000 / 25;
 
 		curGameState = nextGameState = NULL;
 		GameState* latestGameState = &gameStates[0];
 
 		if (numGameStates > 1) {
-			for (int i = 0; i < numGameStates; i+=2) {
-				if (gameStates[i].time <= renderTime && gameStates[(i + 2) % numGameStates].time >= renderTime) {
+			for (int i = 0; i < numGameStates; i += gameStateInterval) {
+				if (gameStates[i].time <= renderTime && gameStates[(i + gameStateInterval) % numGameStates].time >= renderTime) {
 					curGameState = &gameStates[i];
-					nextGameState = &gameStates[(i + 2) % numGameStates];
+					nextGameState = &gameStates[(i + gameStateInterval) % numGameStates];
 					gameStateFactor = (float) (renderTime - curGameState->time) / (float) (nextGameState->time - curGameState->time);
 				}
 			}
