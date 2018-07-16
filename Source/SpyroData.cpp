@@ -232,7 +232,8 @@ void SpyroOnLevelEntry() {
 #define STRIPADDR(addr) ((addr) & 0x003FFFFF)
 
 enum SpyroDataPlacesOfInterest {POI_SPYRO, POI_MOBYS, POI_TEXTURES, POI_LQTEXTURES, POI_HQTEXTURES, POI_SKY, POI_LEVEL, POI_LEVELAREA, POI_LEVELNAMES, POI_SCENE, POI_COLLISION, 
-								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_MOBYCOLLISIONREGIONS, POI_CAMERA, POI_NUMTYPES};
+								POI_SCENEOCCL, POI_SKYOCCL, POI_MOBYMODELS, POI_SPYROMODEL, POI_SPYRODRAW, POI_GAMESTATE, POI_JOKER, POI_MOBYCOLLISIONREGIONS, POI_CAMERA, 
+								POI_EFFECTS, POI_NUMTYPES};
 
 uint32 spyroPois[POI_NUMTYPES]; // List of Spyro 'places of interest' e.g. areas of code with reference to a required set of data, such as the level scenery
 								// This list is re-used and/or updated on each Spyro data scan. This allows a game disc swap to take place comfortably
@@ -285,7 +286,7 @@ void UpdateSpyroPointers() {
 			// Check if we have obtained all needed variables. If so, there's no need to scan the entire memory
 			if (spyroPois[POI_SPYRO] && spyroPois[POI_MOBYS] && (spyroPois[POI_TEXTURES] || (spyroPois[POI_LQTEXTURES] && spyroPois[POI_HQTEXTURES])) && 
 				spyroPois[POI_SKY] && spyroPois[POI_LEVEL] && spyroPois[POI_SCENE] && spyroPois[POI_COLLISION] && spyroPois[POI_GAMESTATE] && spyroPois[POI_JOKER] && 
-				(spyroPois[POI_LEVELAREA] || game != SPYRO3) && spyroPois[POI_CAMERA]) {
+				(spyroPois[POI_LEVELAREA] || game != SPYRO3) && spyroPois[POI_CAMERA] && spyroPois[POI_EFFECTS]) {
 
 				break;
 			}
@@ -324,8 +325,20 @@ void UpdateSpyroPointers() {
 					if ((uintmem[mobyAddr / 4] & 0x003FFFFF) < 0x00200000 && uintmem[mobyAddr / 4] > 0) {
 						mobys = (Moby*) &bytemem[uintmem[mobyAddr / 4] & 0x003FFFFF];
 						numMobys = (int*) &bytemem[(uintmem[mobyAddr / 4] & 0x003FFFFF) - 4];
-						spyroEffects = (SpyroEffect*) &bytemem[uintmem[mobyAddr / 4 + 1] & 0x003FFFFF];
 						spyroPois[POI_MOBYS] = i;
+					}
+				}
+			}
+
+			// Effects list (Spyro 2 and Spyro 3)
+			if (!spyroEffects) {
+				if (uintmem[i+0] == 0x2821 && uintmem[i+1] == 0x24060140 && uintmem[i+2] == 0x240200FF 
+						&& uintmem[i+3] == 0xAFBF0010 && uintmem[i+4] >> 16 == 0x3C01 && uintmem[i+5] >> 16 == 0xAC23) {
+					uint32 effectAddress = BUILDADDR(uintmem[i+4], uintmem[i+5]);
+
+					if (effectAddress < 0x00200000 && effectAddress > 0x00001000) {
+						spyroEffects = (SpyroEffect*)&bytemem[uintmem[effectAddress/4] & 0x003FFFFF];
+						spyroPois[POI_EFFECTS] = i;
 					}
 				}
 			}
