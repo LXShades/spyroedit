@@ -41,7 +41,7 @@ CollisionCache collisionCache;
 
 SpyroCamera* spyroCamera;
 
-SpyroSky* skyData;
+SpyroSky* spyroSky;
 uint32* skyNumSectors;
 uint32* skyBackColour;
 
@@ -251,7 +251,7 @@ void UpdateSpyroPointers() {
 	textures = NULL; numTextures = NULL;
 	lqTextures = NULL; hqTextures = NULL;
 	level = NULL; spyro = NULL;
-	skyData = NULL; skyNumSectors = NULL; skyBackColour = NULL;
+	spyroSky = NULL; skyNumSectors = NULL; skyBackColour = NULL;
 	levelNames = NULL; numLevelNames = 0;
 	scene.SetSpyroScene(0);
 	sceneOcclusion = NULL; skyOcclusion = NULL;
@@ -388,12 +388,12 @@ void UpdateSpyroPointers() {
 				}
 			}
 
-			if (!skyData) {
+			if (!spyroSky) {
 				// Sky data (Spyro 2 and Spyro 3)
 				if (uintmem[i+0] == 0x48C03800 && (uintmem[i+1] >> 16) == 0x3C01 && (uintmem[i+2] >> 16) == 0x2421 && uintmem[i+3] == 0x8C3F0000 && uintmem[i+4] == 0x8C3D0004) {
 					uint32 addr = BUILDADDR(uintmem[i + 1], uintmem[i + 2]);
 					if ((uintmem[addr/4+1] & 0x003FFFFF) > 0 && (uintmem[addr/4+1] & 0x003FFFFF) < 0x00200000) {
-						skyData = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4+1] - 0x0C)];
+						spyroSky = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4+1] - 0x0C)];
 						skyNumSectors = (uint32*) &uintmem[addr/4];
 						skyBackColour = (uint32*) &uintmem[addr/4+2];
 						spyroPois[POI_SKY] = i;
@@ -406,9 +406,9 @@ void UpdateSpyroPointers() {
 
 					uint32 addr = BUILDADDR(uintmem[i + 3], uintmem[i + 4]);
 					if ((uintmem[addr/4] & 0x003FFFFF) > 0 && (uintmem[addr/4] & 0x003FFFFF) < 0x00200000) {
-						skyData = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4] - 0x0C)];
+						spyroSky = (SpyroSky*) &bytemem[STRIPADDR(uintmem[addr/4] - 0x0C)];
 						skyNumSectors = (uint32*) &uintmem[addr/4-1];
-						skyBackColour = (uint32*) &skyData->backColour;
+						skyBackColour = (uint32*) &spyroSky->backColour;
 						spyroPois[POI_SKY] = i;
 					}
 				}
@@ -879,9 +879,9 @@ void MultiplayerLoop() {
 
 void SaveSky()
 {
-	if (!skyData)
+	if (!spyroSky)
 		return;
-	if (skyData->numSectors >= 0x100 || skyData->size >= 0x20000)
+	if (spyroSky->numSectors >= 0x100 || spyroSky->size >= 0x20000)
 		return; // Something went wrong
 
 	char filename[MAX_PATH];
@@ -894,23 +894,23 @@ void SaveSky()
 	if (skyOut == INVALID_HANDLE_VALUE)
 		return;
 
-	uint32 startAddr = (uintptr)skyData - (uintptr)memory;
-	WriteFile(skyOut, skyData, sizeof (SpyroSky) - 4, &nil, NULL);
+	uint32 startAddr = (uintptr)spyroSky - (uintptr)memory;
+	WriteFile(skyOut, spyroSky, sizeof (SpyroSky) - 4, &nil, NULL);
 
 
-	for (int i = 0; i < skyData->numSectors; i ++)
+	for (int i = 0; i < spyroSky->numSectors; i ++)
 	{
-		uint32 offset = (skyData->data[i] & 0x003FFFFF) - startAddr;
+		uint32 offset = (spyroSky->sectors[i].address & 0x003FFFFF) - startAddr;
 		WriteFile(skyOut, &offset, 4, &nil, NULL);
 	}
 
-	WriteFile(skyOut, &skyData->data[skyData->numSectors], skyData->size - sizeof (SpyroSky) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
+	WriteFile(skyOut, &spyroSky->sectors[spyroSky->numSectors].address, spyroSky->size - sizeof (SpyroSky) - 4 - spyroSky->numSectors * 4 + 0x0C, &nil, NULL);
 
 	CloseHandle(skyOut);
 }
 
 void LoadSky(const char* useFilename) {
-	if (!skyData)
+	if (!spyroSky)
 		return;
 
 	if (!useFilename) {
@@ -927,13 +927,13 @@ void LoadSky(const char* useFilename) {
 		return;
 
 	DWORD high, size = GetFileSize(skyIn, &high);
-	if (size > skyData->size + 4) {
+	if (size > spyroSky->size + 4) {
 		if (MessageBox(hwndEditor, "Warning: This sky is bigger than the original sky. This may cause errors or crashes. Continue?", 
 						"The sky's the limit, unfortunately", MB_YESNO) == IDNO)
 			return;
 	}
 
-	uint32 startAddr = ((uintptr)skyData - (uintptr)memory) | 0x80000000;
+	uint32 startAddr = ((uintptr)spyroSky - (uintptr)memory) | 0x80000000;
 	DWORD nil;
 
 	ReadFile(skyIn, &tempSkyData, sizeof (SpyroSky) - 4, &nil, NULL);
@@ -943,17 +943,17 @@ void LoadSky(const char* useFilename) {
 		return; // Something went wrong
 	}
 
-	uint32 originalSize = skyData->size; // Preserve the original size so we can better keep track of memory constraints
-	*skyData = tempSkyData;
-	skyData->size = originalSize;
+	uint32 originalSize = spyroSky->size; // Preserve the original size so we can better keep track of memory constraints
+	*spyroSky = tempSkyData;
+	spyroSky->size = originalSize;
 
 	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < skyData->numSectors; i++) {
+	for (int i = 0; i < spyroSky->numSectors; i++) {
 		uint32 offset;
 		ReadFile(skyIn, &offset, 4, &nil, NULL);
 
 		uint32 address = offset + startAddr;
-		skyData->data[i] = address;
+		spyroSky->sectors[i].address = address;
 
 		/*if (game == SPYRO1)
 		{
@@ -965,11 +965,11 @@ void LoadSky(const char* useFilename) {
 	}
 
 	//if (game != SPYRO1)
-		ReadFile(skyIn, &skyData->data[skyData->numSectors], skyData->size - sizeof (SpyroSky) - 4 - skyData->numSectors * 4 + 0x0C, &nil, NULL);
+		ReadFile(skyIn, &spyroSky->sectors[spyroSky->numSectors].address, spyroSky->size - sizeof (SpyroSky) - 4 - spyroSky->numSectors * 4 + 0x0C, &nil, NULL);
 
 	// Don't forget to update the game's other sky variables
-	*skyNumSectors = skyData->numSectors;
-	*skyBackColour = skyData->backColour;
+	*skyNumSectors = spyroSky->numSectors;
+	*skyBackColour = spyroSky->backColour;
 
 	CloseHandle(skyIn);
 }
@@ -1285,19 +1285,19 @@ void GetLevelColours(LevelColours* clrsOut) {
 }
 
 void TweakSky(int tweakR, int tweakG, int tweakB) {
-	if (!skyData)
+	if (!spyroSky)
 		return;
 
 	uint8* bytemem = (uint8*) memory;
-	for (int i = 0; i < skyData->numSectors; i++) {
+	for (int i = 0; i < spyroSky->numSectors; i++) {
 		int numColours = 0, numVertices = 0;
 		uint32* data32 = NULL;
 
 		if (game == SPYRO1) {
-			SkySectorHeaderS1* sector = (SkySectorHeaderS1*) &bytemem[skyData->data[i] & 0x003FFFFF];
+			SkySectorHeaderS1* sector = (SkySectorHeaderS1*) &bytemem[spyroSky->sectors[i].address & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
 		} else {
-			SkySectorHeader* sector = (SkySectorHeader*) &bytemem[skyData->data[i] & 0x003FFFFF];
+			SkySectorHeader* sector = (SkySectorHeader*) &bytemem[spyroSky->sectors[i].address & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
 		}
 
@@ -1321,7 +1321,7 @@ void TweakSky(int tweakR, int tweakG, int tweakB) {
 	if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
 
 	*skyBackColour = r | (g << 8) | (b << 16) | (a << 24);
-	skyData->backColour = *skyBackColour;
+	spyroSky->backColour = *skyBackColour;
 }
 
 uint32 GetAverageLightColour() {
@@ -1385,23 +1385,23 @@ uint32 GetAverageLightColour() {
 }
 
 uint32 GetAverageSkyColour() {
-	if (!skyData)
+	if (!spyroSky)
 		return 0;
 
 	uint8* bytemem = (uint8*) memory;
 	int mainAvgClrR = 0, mainAvgClrG = 0, mainAvgClrB = 0;
 	int mainAvgClrDiv = 0;
-	for (int i = 0; i < skyData->numSectors; i ++)
+	for (int i = 0; i < spyroSky->numSectors; i ++)
 	{
 		int numColours = 0, numVertices = 0;
 		int avgClrR = 0, avgClrG = 0, avgClrB = 0;
 		uint32* data32 = NULL;
 
 		if (game == SPYRO1) {
-			SkySectorHeaderS1* sector = (SkySectorHeaderS1*) &bytemem[skyData->data[i] & 0x003FFFFF];
+			SkySectorHeaderS1* sector = (SkySectorHeaderS1*) &bytemem[spyroSky->sectors[i].address & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
 		} else {
-			SkySectorHeader* sector = (SkySectorHeader*) &bytemem[skyData->data[i] & 0x003FFFFF];
+			SkySectorHeader* sector = (SkySectorHeader*) &bytemem[spyroSky->sectors[i].address & 0x003FFFFF];
 			numColours = sector->numColours; numVertices = sector->numVertices; data32 = sector->data32;
 		}
 
@@ -1489,6 +1489,7 @@ bool IsModelValid(int modelId, int animIndex) {
 }
 
 void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool createFolders) {
+	char numberedLevelName[] = "SX_LevelXX";
 	const char* levelName = "*UnknownLevel*";
 	char rootDir[MAX_PATH];
 
@@ -1496,6 +1497,8 @@ void GetLevelFilename(char* filenameOut, SpyroEditFileType fileType, bool create
 		levelName = (const char*) &umem8[levelNames[*level] & 0x003FFFFF];
 	else if (game == SPYRO1 && level && *level >= 0 && *level < 35)
 		levelName = spyro1LevelNames[*level];
+	else if (level)
+		sprintf(numberedLevelName, "S%01i_Level%02x", game, *level);
 
 	// Get root directory
 	GetModuleFileName(GetModuleHandle(NULL), rootDir, MAX_PATH);

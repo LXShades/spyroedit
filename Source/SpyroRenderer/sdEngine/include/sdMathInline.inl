@@ -682,7 +682,7 @@ inline void Matrix::MakeTranslation(float x, float y, float z) {
 inline void Matrix::MakeScale(float xScale, float yScale, float zScale) {
 	m11 = xScale; m12 = 0.0f; m13 = 0.0f; m14 = 0.0f;
 	m21 = 0.0f; m22 = yScale; m23 = 0.0f; m24 = 0.0f;
-	m31 = 0.0f; m32 = 0.0f; m33 = zScale = 0.0f;
+	m31 = 0.0f; m32 = 0.0f; m33 = zScale; m34 = 0.0f;
 	m41 = 0.0f; m42 = 0.0f; m43 = 0.0f; m44 = 1.0f;
 }
 

@@ -202,21 +202,17 @@ struct Moby { // Moby size: 0x58
 	}
 };
 
-struct SpyroSky {
-	uint32 size;
-	uint32 backColour;
-	uint32 numSectors;
-
-	uint32 data[1];
-};
-
 struct SkySectorHeader {
-	uint8 unknown00[12];
+	uint8 unknown00[8];
+	int16 y, z;
 	uint8 numVertices, numColours;
-	uint8 unknown0E[2];
-	uint8 unknown10[4];
+	int16 x;
+	uint16 faceBlockSize, faceStarterSize;
 
-	uint32 data32[1];
+	union {
+		uint16 data16[1];
+		uint32 data32[1];
+	};
 };
 
 struct SkySectorHeaderS1 {
@@ -228,6 +224,17 @@ struct SkySectorHeaderS1 {
 	uint32 zTerminator;
 
 	uint32 data32[1];
+};
+
+struct SpyroSky {
+	uint32 size;
+	uint32 backColour;
+	uint32 numSectors;
+
+	union {
+		SpyroPointer<SkySectorHeader> sectors[1];
+		SpyroPointer<SkySectorHeaderS1> sectorsS1[1];
+	};
 };
 
 struct ModelAnimFrameInfo {
@@ -507,7 +514,7 @@ extern int numLevelNames;
 
 extern uint32 texEditFlags; // of the TextureEditFlags enum
 
-extern SpyroSky* skyData;
+extern SpyroSky* spyroSky;
 extern uint32* skyNumSectors;
 extern uint32* skyBackColour;
 

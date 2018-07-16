@@ -97,7 +97,7 @@ struct StatusObject {
 };
 
 StatusObject statusObjects[] = {{NULL, "Spyro", (uintptr) &spyro}, {NULL, "Objects", (uintptr) &mobys}, {NULL, "Camera", (uintptr) &spyroCamera},
-								{NULL, "Scene model", (uintptr) &scene.spyroScene.address}, {NULL, "Sky model", (uintptr) &skyData}, 
+								{NULL, "Scene model", (uintptr) &scene.spyroScene.address}, {NULL, "Sky model", (uintptr) &spyroSky}, 
 								{NULL, "Collision data", (uintptr) &spyroCollision.address}, 
 								{NULL, "Object models", (uintptr) &mobyModels}, 
 								{NULL, "Scene occlusion", (uintptr) &sceneOcclusion}, {NULL, "Sky occlusion", (uintptr) &skyOcclusion}, 
@@ -416,6 +416,9 @@ void CreateGenesisPage() {
 void CreateRenderPage() {
 	pageRender.AddLine();
 	pageRender.AddButton("Open Spyro Renderer", 90, 120, [](){SpyroRender::Open();});
+
+	pageRender.AddLine();
+	pageRender.AddButton("Reset Level Textures", 90, 120, [](){SpyroRender::UpdateTextures(true);});
 }
 #endif
 

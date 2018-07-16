@@ -3,6 +3,7 @@
 #include <cmath>
 #include <mutex>
 
+#include "SpyroRender.h"
 #include "../SpyroData.h"
 #include "../SpyroScene.h"
 #include "../SpyroTextures.h"
@@ -58,6 +59,11 @@ struct LerpScene {
 	uint32 numSectors;
 };
 
+// note: sky doesn't actually lerp, just keeping things consistent here...
+struct LerpSky {
+	Model sectors[256];
+};
+
 struct GameState {
 	LerpMoby mobys[500];
 	uint32 numMobys;
@@ -70,6 +76,7 @@ struct GameState {
 };
 
 LerpScene lerpScene;
+LerpSky skyModel;
 
 GameState* gameStates;
 GameState* curGameState;
@@ -125,10 +132,9 @@ bool updatingRender = false;
 
 bool isRenderOpen = false;
 
-void UpdateScene(); void UpdateMobys(); void UpdateSpyro();
-void DrawScene(); void DrawMobys(); void DrawSpyro();
+void UpdateScene(); void UpdateMobys(); void UpdateSpyro(); void UpdateSky();
+void DrawScene(); void DrawMobys(); void DrawSpyro(); void DrawSky();
 void DrawModel(const Model* model, const Matrix* transform);
-void UpdateTextures();
 void OnLevelEntry();
 inline float LerpAngle(float val1, float val2, float factor);
 void Alert(const char* string);
@@ -215,7 +221,9 @@ void OnLevelEntry() {
 	if (!isRenderOpen) {
 		return;
 	}
+
 	UpdateTextures();
+	UpdateSky();
 }
 
 void OnUpdateLace() {
@@ -273,6 +281,9 @@ void OnUpdateLace() {
 
 	if (spyro && mobyModels)
 		UpdateSpyro();
+
+	if (spyroSky)
+		UpdateSky();
 
 	//if ((interval & 63) == 0)
 	//	UpdateTextures();
@@ -336,7 +347,12 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 				Vec3(sin(camAng) * cos(camVAng), -cos(camAng) * cos(camVAng), sin(camVAng)), vecZ, 72.0f, (float)wndMainW / (float)wndMainH, 0.01f, 100.0f);
 			draw.SetCameraByMatrix(&cameraMatrix);
 
+			if (skyBackColour) {
+				draw.DrawClear(*skyBackColour, 1.0f);
+			}
+
 			draw.SetObjectTransform(NULL);
+			DrawSky();
 			DrawScene();
 			DrawMobys();
 			DrawSpyro();
@@ -685,10 +701,107 @@ void UpdateSpyro() {
 	writeGameState->spyro.rotation.Set(spyro->angle.x * DOUBLEPI / 255.0f, -spyro->angle.y * DOUBLEPI / 255.0f, spyro->angle.z * DOUBLEPI / 255.0f);
 }
 
+void UpdateSky() {
+	for (int i = 0; i < 256; ++i) {
+		skyModel.sectors[i].numFaces = 0;
+		skyModel.sectors[i].numVerts = 0;
+	}
+
+	if (!spyroSky || spyroSky->numSectors > 300) {
+		return;
+	}
+
+	for (int i = 0; i < spyroSky->numSectors && i < *skyNumSectors; ++i) {
+		SkySectorHeader* sector = spyroSky->sectors[i];
+		Model* model = &skyModel.sectors[i];
+
+		uint32* verts = &sector->data32[0], *colours = &sector->data32[sector->numVertices], *faceStarters = &sector->data32[sector->numVertices + sector->numColours];
+		uint16* faceBlocks = &sector->data16[((sector->numColours + sector->numVertices) * 4 + sector->faceStarterSize) / 2], *endFaceBlock = &faceBlocks[sector->faceBlockSize / 2];
+		int numVerts = sector->numVertices;
+		
+		if (!numVerts) {
+			continue;
+		}
+
+		// Convert vertices
+		model->numVerts = sector->numVertices;
+		for (int vert = 0; vert < sector->numVertices; ++vert) {
+			model->verts[vert].Set((sector->x + bitss(verts[vert], 21, 11)) * 0.001f, 
+								   (-sector->y + (int)bitss(verts[vert], 10, 11)) * 0.001f, 
+								   (-sector->z + (int)bitsu(verts[vert], 0, 10)) * 0.001f);
+		}
+
+		// Convert colours
+		model->numColours = sector->numColours;
+		for (int colour = 0; colour < sector->numColours; ++colour) {
+			model->colours[colour] = 0xFF000000 | colours[colour];
+		}
+
+		// Convert faces
+		DrawFace* curModelFace = &model->faces[0];
+		uint16* curFaceBlock = faceBlocks;
+		uint32* curFaceStarter = faceStarters;
+		const float blankUv = 8.0f / (float) 512.0f;
+
+		while (curFaceBlock < endFaceBlock) {
+			uint32 starter = *curFaceStarter++;
+			uint16 starterBlock = *curFaceBlock++;
+			uint8 positions[12], colours[12];
+			uint8 numExtraTriangles;
+			int firstVert = 1, secondVert = 0;
+
+			numExtraTriangles = bitsu(starter, 0, 3);
+			colours[0] = bitsu(starter, 10, 7);
+			colours[1] = bitsu(starter, 3, 7);
+			colours[2] = bitsu(starter, 17, 7);
+			positions[0] = bitsu(starterBlock, 0, 8) % numVerts;
+			positions[1] = bitsu(starter, 24, 8) % numVerts;
+			positions[2] = bitsu(starterBlock, 8, 8) % numVerts;
+
+			curModelFace->numSides = 3;
+			for (int side = 0; side < 3; ++side) {
+				curModelFace->verts[side] = positions[side];
+				curModelFace->colours[side] = colours[side];
+				curModelFace->u[side] = curModelFace->v[side] = blankUv;
+			}
+
+			++curModelFace;
+			for (int tri = 0; tri < numExtraTriangles; ++tri) {
+				colours[3 + tri] = bitsu(*curFaceBlock, 8, 7);
+				positions[3 + tri] = bitsu(*curFaceBlock, 0, 8);
+
+				curModelFace->numSides = 3;
+				for (int side = 0; side < 3; ++side) {
+					curModelFace->u[side] = curModelFace->v[side] = blankUv;
+				}
+
+				curModelFace->verts[0] = positions[firstVert] % numVerts;
+				curModelFace->verts[1] = positions[secondVert] % numVerts;
+				curModelFace->verts[2] = positions[tri + 3] % numVerts;
+				curModelFace->colours[0] = colours[firstVert];
+				curModelFace->colours[1] = colours[secondVert];
+				curModelFace->colours[2] = colours[tri + 3];
+
+				if (bitsu(*curFaceBlock, 15, 1)) {
+					secondVert = tri + 2;
+					if (tri == 0) {
+						secondVert = 1;
+					}
+				}
+				firstVert = tri + 3;
+
+				++curFaceBlock;
+				++curModelFace;
+			}
+		}
+		model->numFaces = curModelFace - model->faces;
+	}
+}
+
 void DrawScene() {
 	draw.SetTextures(ST_PIXEL, 0, 1, &sceneTex);
 	for (int i = 0; i < lerpScene.numSectors; i++) {
-		DrawModel(&lerpScene.sectors[i], NULL);;
+		DrawModel(&lerpScene.sectors[i], NULL);
 	}
 }
 
@@ -961,7 +1074,24 @@ void DrawSpyro() {
 	DrawModel(&tempModel, &transform);
 }
 
+void DrawSky() {
+	draw.SetTextures(ST_PIXEL, 0, 1, &objTex);
+
+	for (int i = 0; i < 256; ++i) {
+		Matrix transform;
+
+		Vec3 pos = curGameState->camera.position * (1.0f - gameStateFactor) + nextGameState->camera.position * gameStateFactor;
+		transform.MakeScale(98.0f, 98.0f, 98.0f);
+		transform.Translate(pos.x, pos.y, pos.z);
+		DrawModel(&skyModel.sectors[i], &transform);
+	}
+}
+
 void DrawModel(const Model* model, const Matrix* transform) {
+	if (!model->numVerts || !model->numFaces) {
+		return;
+	}
+
 	int curVert = 0;
 
 	CTVertex* vertBuf = (CTVertex*) modelBuffers[curModelBuffer]->Lock();
@@ -994,7 +1124,7 @@ void DrawModel(const Model* model, const Matrix* transform) {
 	curModelBuffer = (curModelBuffer + 1) % (sizeof (modelBuffers) / sizeof (modelBuffers[0]));
 }
 
-void UpdateTextures() {
+void UpdateTextures(bool doForceReplaceTextures) {
 	if (!textures && !hqTextures)
 		return;
 	
@@ -1004,7 +1134,7 @@ void UpdateTextures() {
 	GetLevelFilename(filename, SEF_RENDERTEXTURES, true);
 	mbstowcs(filenameW, filename, MAX_PATH);
 
-	if (GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
+	if (doForceReplaceTextures || GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
 		// Texture file doesn't exist? Create it
 		SaveTexturesAsSingle(filename);
 	}
@@ -1038,7 +1168,7 @@ void UpdateTextures() {
 	GetLevelFilename(filename, SEF_RENDEROBJTEXTURES, true);
 	mbstowcs(filenameW, filename, MAX_PATH);
 
-	if (GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
+	if (doForceReplaceTextures || GetFileAttributes(filename) == INVALID_FILE_ATTRIBUTES) {
 		// Texture file doesn't exist? Create it
 		SaveObjectTextures(filename);
 	}

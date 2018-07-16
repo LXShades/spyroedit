@@ -8,5 +8,7 @@ namespace SpyroRender {
 	void OnLevelEntry();
 
 	void OnUpdateLace();
+
+	void UpdateTextures(bool doOverwriteExistingTextures = false);
 };
 #endif
