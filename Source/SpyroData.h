@@ -237,6 +237,36 @@ struct SpyroSky {
 	};
 };
 
+enum class SpyroEffectRenderType : uint8 {
+	StateInactive = 0xFE,
+	StateFinal = 0xFF,
+	Spark = 0,
+	String = 1,
+	Sprite = 4,
+};
+
+struct SpyroEffect {
+	uint8 type;
+	SpyroEffectRenderType renderType;
+	uint8 lifeTime;
+	uint8 unk03; // isAlive?
+	uint16 x, y, z;
+	
+	union {
+		struct {
+			uint16 unk0A;
+			uint32 colour;
+		} spark;
+
+		struct {
+			uint16 x2, y2, z2;
+			uint32 colour1;
+			uint32 colour2;
+			uint32 unk18[2];
+		} string;
+	};
+};
+
 struct ModelAnimFrameInfo {
 	uint16 blockOffset; // offset of block start (in blocks/ *2 bytes)
 	uint8 numBlocks; // number of blocks
@@ -524,6 +554,8 @@ extern uint8* skyOcclusion;
 extern SpyroCamera* spyroCamera;
 
 extern SpyroCollision spyroCollision;
+
+extern SpyroEffect* spyroEffects;
 
 extern CollisionCache collisionCache;
 

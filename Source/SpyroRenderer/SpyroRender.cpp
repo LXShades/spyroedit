@@ -54,6 +54,11 @@ struct LerpCamera {
 	float32 vAngle;
 };
 
+struct LerpEffect {
+	SpyroEffect effect;
+};
+
+// note: scene doesn't actually lerp...
 struct LerpScene {
 	Model sectors[256];
 	uint32 numSectors;
@@ -65,12 +70,18 @@ struct LerpSky {
 };
 
 struct GameState {
-	LerpMoby mobys[500];
-	uint32 numMobys;
+	static const uint16 maxNumEffects = 100;
+	static const uint16 maxNumMobys = 500;
+
+	LerpMoby mobys[maxNumMobys];
+	uint16 numMobys;
 
 	LerpSpyro spyro;
 
 	LerpCamera camera;
+
+	LerpEffect effects[maxNumEffects];
+	uint16 numEffects;
 
 	uint32 time; // time (in ms) that this gamestate occurred
 };
@@ -78,13 +89,16 @@ struct GameState {
 LerpScene lerpScene;
 LerpSky skyModel;
 
+const int numEffectsModels = 3;
+Model effectsModels[numEffectsModels];
+
 GameState* gameStates;
 GameState* curGameState;
 GameState* nextGameState;
 GameState* writeGameState = 0;
-const int numGameStates = 20;
+const int numGameStates = 10;
 float gameStateFactor; // blend factor between current and last game state
-const int gameStateDelay = 90; // visible gamestate delay in ms
+const int gameStateDelay = 90; // visible gamestate delay in ms. numGameStates must be large enough to support the number of gamestates required to buffer this much time.
 
 const uint32 mobyVertAdjustTable[127] = {
 	0xFE9FD3FA, 0xFF5FD3FA, 0x001FD3FA, 0x00DFD3FA, 0x019FD3FA, 0xFE9FEBFA, 0xFF5FEBFA, 0x001FEBFA, 0x00DFEBFA, 0x019FEBFA, 0xFE8003FA, 0xFF4003FA, 0x000003FA, 0x00C003FA,
@@ -132,8 +146,8 @@ bool updatingRender = false;
 
 bool isRenderOpen = false;
 
-void UpdateScene(); void UpdateMobys(); void UpdateSpyro(); void UpdateSky();
-void DrawScene(); void DrawMobys(); void DrawSpyro(); void DrawSky();
+void UpdateScene(); void UpdateMobys(); void UpdateSpyro(); void UpdateSky(); void UpdateEffects();
+void DrawScene(); void DrawMobys(); void DrawSpyro(); void DrawSky(); void DrawEffects();
 void DrawModel(const Model* model, const Matrix* transform);
 void OnLevelEntry();
 inline float LerpAngle(float val1, float val2, float factor);
@@ -285,6 +299,9 @@ void OnUpdateLace() {
 	if (spyroSky)
 		UpdateSky();
 
+	if(spyroEffects)
+		UpdateEffects();
+
 	//if ((interval & 63) == 0)
 	//	UpdateTextures();
 
@@ -339,7 +356,7 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 		// Render the game!
 		if (vpMain && spyro) {
 			draw.BeginScene();
-			float camAng = LerpAngle(curGameState->camera.hAngle, nextGameState->camera.hAngle, gameStateFactor);;
+			float camAng = LerpAngle(curGameState->camera.hAngle, nextGameState->camera.hAngle, gameStateFactor);
 			float camVAng = LerpAngle(curGameState->camera.vAngle, nextGameState->camera.vAngle, gameStateFactor);
 
 			Matrix cameraMatrix;
@@ -355,6 +372,7 @@ DWORD WINAPI RerenderThread(LPVOID null) {
 			DrawSky();
 			DrawScene();
 			DrawMobys();
+			DrawEffects();
 			DrawSpyro();
 
 			draw.SetObjectTransform(NULL);
@@ -798,6 +816,22 @@ void UpdateSky() {
 	}
 }
 
+void UpdateEffects() {
+	writeGameState->numEffects = 0;
+
+	if (spyroEffects) {
+		for (int effect = 0; effect < 512 && writeGameState->numEffects < GameState::maxNumEffects; ++effect) {
+			if (spyroEffects[effect].renderType == SpyroEffectRenderType::StateInactive) {
+				continue;
+			} else if (spyroEffects[effect].renderType == SpyroEffectRenderType::StateFinal) {
+				break;
+			} else {
+				writeGameState->effects[writeGameState->numEffects++].effect = spyroEffects[effect];
+			}
+		}
+	}
+}
+
 void DrawScene() {
 	draw.SetTextures(ST_PIXEL, 0, 1, &sceneTex);
 	for (int i = 0; i < lerpScene.numSectors; i++) {
@@ -1084,6 +1118,95 @@ void DrawSky() {
 		transform.MakeScale(98.0f, 98.0f, 98.0f);
 		transform.Translate(pos.x, pos.y, pos.z);
 		DrawModel(&skyModel.sectors[i], &transform);
+	}
+}
+
+void DrawEffects() {
+	float camAng = LerpAngle(curGameState->camera.hAngle, nextGameState->camera.hAngle, gameStateFactor);
+	float camVAng = LerpAngle(curGameState->camera.vAngle, nextGameState->camera.vAngle, gameStateFactor);
+	Vec3 camPos = nextGameState->camera.position * gameStateFactor + curGameState->camera.position * (1.0f - gameStateFactor);
+	Vec3 camFwd = Vec3(sin(camAng) * cos(camVAng), -cos(camAng) * cos(camVAng), sin(camVAng)), 
+		camRight = Vec3(sin(camAng + HALFPI) * cos(camVAng), -cos(camAng + HALFPI) * cos(camVAng), sin(camVAng)), 
+		camUp = vecZ;
+
+	for (int i = 0; i < numEffectsModels; ++i) {
+		effectsModels[i].numColours = effectsModels[i].numFaces = effectsModels[i].numVerts = 0;
+	}
+
+	int curVert = 0, curFace = 0, curColour = 0;
+	Model* model = &effectsModels[0];
+	for (int curEffect = 0; curEffect < curGameState->numEffects; ++curEffect) {
+		SpyroEffect* effect = &curGameState->effects[curEffect].effect;
+		Vec3 position = Vec3(effect->x * WORLDSCALE / 4.0f, effect->y * WORLDSCALE / 4.0f, effect->z * WORLDSCALE / 4.0f);
+
+		// Check if we need to advance to the next model (if possible)
+		if (curVert + 4 > 256 || curFace + 4 > 256) {
+			++model;
+			if (model == &effectsModels[numEffectsModels])
+				goto Final;
+
+			curVert = 0;
+			curFace = 0;
+		}
+		
+		// Render the effect
+		auto addPatch = [&](const Vec3& pos1, const Vec3& pos2, const Vec3& pos3, const Vec3& pos4, 
+			int clr1, int clr2, int clr3, int clr4) {
+			model->verts[curVert+0] = pos1;
+			model->verts[curVert+1] = pos2;
+			model->verts[curVert+2] = pos3;
+			model->verts[curVert+3] = pos4;
+			for (int i = 0; i < 4; ++i) {
+				model->faces[curFace].verts[i] = curVert + i;
+				model->faces[curFace].u[i] = model->faces[curFace].v[i] = 8.0f / 512.0f;
+			}
+			model->faces[curFace].colours[0] = clr1;
+			model->faces[curFace].colours[1] = clr2;
+			model->faces[curFace].colours[2] = clr3;
+			model->faces[curFace].colours[3] = clr4;
+			model->faces[curFace].numSides = 4;
+			curFace += 1;
+			curVert += 4;
+		};
+		auto convertColour = [](uint32 colour) {
+			return 0xFF000000 | (colour >> 16 & 0xFF) | (colour & 0xFF00) | (colour << 16 & 0xFF0000);
+		};
+
+		switch (effect->renderType) {
+			case SpyroEffectRenderType::StateInactive:
+				continue;
+			case SpyroEffectRenderType::StateFinal:
+				goto Final;
+			case SpyroEffectRenderType::Spark: {
+				const float size = 0.005f * Vec3::Dot(camFwd, position - camPos);
+				Vec3 up = camUp * size, right = camRight * size;
+				addPatch(position + up - right, position + up + right, position - up + right, position - up - right, curColour, curColour, curColour, curColour);
+				model->colours[curColour++] = effect->spark.colour | 0xFF000000;
+				break;
+			}
+			case SpyroEffectRenderType::String: {
+				const float size = 0.005f * Vec3::Dot(camFwd, position - camPos);
+				Vec3 position2 = Vec3(effect->string.x2 * WORLDSCALE / 4.0f, effect->string.y2 * WORLDSCALE / 4.0f, effect->string.z2 * WORLDSCALE / 4.0f);
+				Vec3 edgeVector = Vec3::Cross(camFwd, position2 - position);
+				edgeVector.ScaleTo(size);
+
+				addPatch(position + edgeVector, position - edgeVector, position2 - edgeVector, position2 + edgeVector, curColour, curColour, curColour + 1, curColour + 1);
+				model->colours[curColour++] = effect->string.colour1 | 0xFF000000;
+				model->colours[curColour++] = effect->string.colour2 | 0xFF000000;
+				break;
+			}
+		}
+
+		model->numVerts = curVert;
+		model->numFaces = curFace;
+		model->numColours = curColour;
+	}
+
+Final:;
+	draw.SetTextures(ST_PIXEL, 0, 1, &objTex);
+
+	for (int i = 0; i < numEffectsModels; ++i) {
+		DrawModel(&effectsModels[i], &matIdentity);
 	}
 }
 

@@ -55,6 +55,8 @@ SpyroPointer<Moby>* mobyCollisionRegions;
 uint32* levelNames;
 int numLevelNames;
 
+SpyroEffect* spyroEffects;
+
 uint32 backupColoursHp[256][512];
 uint32 backupColoursLp[256][256];
 
@@ -248,6 +250,7 @@ void UpdateSpyroPointers() {
 	uint16 lastJoker = joker;
 
 	mobys = NULL; numMobys = NULL;
+	spyroEffects = NULL;
 	textures = NULL; numTextures = NULL;
 	lqTextures = NULL; hqTextures = NULL;
 	level = NULL; spyro = NULL;
@@ -321,6 +324,7 @@ void UpdateSpyroPointers() {
 					if ((uintmem[mobyAddr / 4] & 0x003FFFFF) < 0x00200000 && uintmem[mobyAddr / 4] > 0) {
 						mobys = (Moby*) &bytemem[uintmem[mobyAddr / 4] & 0x003FFFFF];
 						numMobys = (int*) &bytemem[(uintmem[mobyAddr / 4] & 0x003FFFFF) - 4];
+						spyroEffects = (SpyroEffect*) &bytemem[uintmem[mobyAddr / 4 + 1] & 0x003FFFFF];
 						spyroPois[POI_MOBYS] = i;
 					}
 				}
