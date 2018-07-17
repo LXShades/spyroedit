@@ -11,6 +11,8 @@ Officially compatible with Spyro 2 and 3, with limited compatibilty for Spyro 1.
 
 # Videos
 [![SpyroEdit preview video](http://img.youtube.com/vi/xi-6TCptTOo/0.jpg)](https://www.youtube.com/watch?v=xi-6TCptTOo)
+[![SpyroEdit custom renderer](http://img.youtube.com/vi/x2GOLSKcMig/0.jpg)](https://www.youtube.com/watch?v=x2GOLSKcMig)
+
 
 # Features
 * Edit level textures and colours!
@@ -18,9 +20,17 @@ Officially compatible with Spyro 2 and 3, with limited compatibilty for Spyro 1.
 * Give Spyro cool and unruly powers, such as the Headbashpocalypse!  
 * Edit object properties in-game!  
 * Edit scenery and object positions with Genesis!  
+* View and export Spyro and object models with Genesis! (.dae export now supported)  
+* See the game through new eyes in a prototype Widescreen, HD 60FPS custom renderer!  
 * MultiSpyro support: Lead your Army of Spyros with the Spyro trail! Includes limited online support  
 
 # Updates
+## 17th July 2018
+* Skies are now rendered in the renderer!  
+* Simple spark effects are now rendered in the renderer!  
+* Bugfix: Spyro the Dragon now loads and appears to be compatible with Genesis scenery edits  
+* Bugfix: Gems were invisible in Genesis  
+
 ## 26th June 2018
 * Genesis now supports animation viewing  
 * Genesis now supports model exporting to the collada (.dae) file format  
@@ -34,9 +44,10 @@ Officially compatible with Spyro 2 and 3, with limited compatibilty for Spyro 1.
 * New bug! (Yay!): Genesis crashes when a new document is created, and some circumstances when objects are replaced with new ones. **Save regularly!**  
 
 # Download
+[SpyroEdit 2.3](https://github.com/LXShades/spyroedit/releases/download/v2.3/gpuSpyroEdit.dll)  
 [SpyroEdit 2.2](https://github.com/LXShades/spyroedit/releases/download/v2.2/gpuSpyroEdit.dll)  
-[Genesis (for SpyroEdit 2.2)](https://github.com/LXShades/spyroedit/releases/download/v2.2/Genesis.exe)  
 [SpyroEdit 2.1](https://github.com/LXShades/spyroedit/releases/download/v2.1-beta/gpuSpyroEdit.dll)  
+[Genesis (for SpyroEdit 2.2 and 2.3)](https://github.com/LXShades/spyroedit/releases/download/v2.2/Genesis.exe)  
 [Genesis (for SpyroEdit 2.1)](https://github.com/LXShades/spyroedit/releases/download/v2.1-beta/Genesis.exe)  
 
 # Guides
