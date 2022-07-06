@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <vector>
+#include <sstream> // converting float to string
 #include "Types.h"
 
 struct CtrlButton {
@@ -27,6 +28,7 @@ struct SpyroEditPage {
 	void AddLine(uint32 pgFlags = 0, uint32 lineHeight = 19);
 	void AddGroup(const char* groupName);
 	HWND AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
+	HWND AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
 	CtrlButton* AddButton(const char* buttonText, int x, int width, void (*onClick)() = nullptr);
 	CtrlTextbox* AddTextbox(const char* defaultText, int x, int width);
 

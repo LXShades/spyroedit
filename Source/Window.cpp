@@ -68,7 +68,13 @@ HWND staticTransferStatus;
 
 // Powers page
 HWND buttonPowers[32];
-int numPowers = 0;
+int g_numPowers = 0;
+HWND	edit_headbash_range;
+HWND	edit_headbash_depth;
+HWND	edit_headbash_rimHeight;
+HWND	edit_headbash_rimWidth;
+HWND	edit_headbash_crushFactor;
+HWND	edit_headbash_crushFactorOuter;
 
 // Textures page
 HWND button_editTextures;
@@ -236,6 +242,23 @@ void CreateOnlinePage() {
 	staticTransferStatus = pageOnline.AddControl("STATIC", "", SS_LEFT, 1, 300);
 }
 
+void	UpdateHeadbash() {
+	char	new_headbash_setting[20];
+
+	SendMessage(edit_headbash_range, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_range = atof(new_headbash_setting);
+	SendMessage(edit_headbash_depth, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_depth = atof(new_headbash_setting);
+	SendMessage(edit_headbash_rimHeight, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_rimHeight = atof(new_headbash_setting);
+	SendMessage(edit_headbash_rimWidth, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_rimWidth = atof(new_headbash_setting);
+	SendMessage(edit_headbash_crushFactor, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_crushFactor = atof(new_headbash_setting);
+	SendMessage(edit_headbash_crushFactorOuter, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
+	headbash_crushFactorOuter = atof(new_headbash_setting);
+}
+
 void CreatePowersPage() {
 	const char* powerNames[] = {"Attraction", "Repulsion", "Gem Attraction", "Forcefield (protection)", "Super Headbash", "Ultra Headbash", "Headbashpocalypse", 
 		"Butterfly Breath", "Death Stare", "Death Field", "Repulsion Stare", "Attraction Stare", "Exorcist (S3PAL)", "Tornado", "Telekinesis (S3PAL)", 
@@ -245,11 +268,34 @@ void CreatePowersPage() {
 		if (!(i&1) && i)
 			pagePowers.AddLine(0, 17);
 
-		buttonPowers[numPowers] = pagePowers.AddControl("BUTTON", powerNames[i], BS_AUTOCHECKBOX, 10 + (i & 1) * 150, 130);
-		SendMessage(buttonPowers[numPowers], BM_SETCHECK, ((powers & (1 << i)) ? BST_CHECKED : BST_UNCHECKED), 0);
+		buttonPowers[g_numPowers] = pagePowers.AddControl("BUTTON", powerNames[i], BS_AUTOCHECKBOX, 10 + (i & 1) * 150, 130);
+		SendMessage(buttonPowers[g_numPowers], BM_SETCHECK, ((powers & (1 << i)) ? BST_CHECKED : BST_UNCHECKED), 0);
 
-		numPowers++;
+		g_numPowers++;
 	}
+
+	pagePowers.AddLine();
+	pagePowers.AddGroup("Headbashpocalypse settings:");
+
+	pagePowers.AddControl("STATIC", "Range:", 0, 10, 100);
+	edit_headbash_range = pagePowers.AddControl("EDIT", headbash_range, WS_BORDER, 115, 40);
+	pagePowers.AddControl("STATIC", "Depth:", 0, 160, 100);
+	edit_headbash_depth = pagePowers.AddControl("EDIT", headbash_depth, WS_BORDER, 260, 40);
+	pagePowers.AddLine();
+
+	pagePowers.AddControl("STATIC", "Rim Height:", 0, 10, 100);
+	edit_headbash_rimHeight = pagePowers.AddControl("EDIT", headbash_rimHeight, WS_BORDER, 115, 40);
+	pagePowers.AddControl("STATIC", "Rim Width:", 0, 160, 100);
+	edit_headbash_rimWidth = pagePowers.AddControl("EDIT", headbash_rimWidth, WS_BORDER, 260, 40);
+	pagePowers.AddLine();
+
+	pagePowers.AddControl("STATIC", "Crush Factor:", 0, 10, 100);
+	edit_headbash_crushFactor = pagePowers.AddControl("EDIT", headbash_crushFactor, WS_BORDER, 115, 40);
+	pagePowers.AddControl("STATIC", "Crush Factor Outer:", 0, 160, 100);
+	edit_headbash_crushFactorOuter = pagePowers.AddControl("EDIT", headbash_crushFactorOuter, WS_BORDER, 260, 40);
+	pagePowers.AddLine();
+
+	pagePowers.AddButton("Update Heabshpocalypse settings", 30, 250, UpdateHeadbash);
 }
 
 void CreateTexturesPage() {
@@ -353,20 +399,19 @@ void CreateStatusPage() {
 	static_memVisualiser = pageStatus.AddControl("STATIC", "", SS_OWNERDRAW, 10, 300);
 	pageStatus.AddLine();
 	static_memStatus = pageStatus.AddControl("STATIC", "<Memory not analysed>", SS_SIMPLE, 10, 300);
-	
 	pageStatus.AddLine();
 	pageStatus.AddLine();
 	button_vramViewer = pageStatus.AddControl("BUTTON", "Open VRAM viewer", BS_PUSHBUTTON, 10, 300);
 }
 
 void CreateGenesisPage() {
-	HWND static1 = pageGenesis.AddControl("STATIC", "IP address:", 0, 7, 53);
-	
+	pageGenesis.AddControl("STATIC", "IP address:", 0, 7, 53);
+
 	edit_genIp = pageGenesis.AddControl("EDIT", "127.0.0.1",  WS_BORDER, 64, 120);
-	
+
 	pageGenesis.AddLine();
 	pageGenesis.AddButton("Connect", 7, 177, [](){if (!ConnectLiveGen()) MessageBox(NULL, "LiveGen Connection failed", "Please don't hurt me but", MB_OK);});
-	
+
 	pageGenesis.AddLine();
 	pageGenesis.AddButton("Send Scene", 7, 80, &SendLiveGenScene);
 	pageGenesis.AddButton("Reset Scene",  95, 80, &ResetLiveGenScene);
@@ -379,33 +424,32 @@ void CreateGenesisPage() {
 	pageGenesis.AddLine();
 	pageGenesis.AddButton("Rebuild Colltree", 7, 80, &RebuildCollisionTriangles);
 	pageGenesis.AddButton("Regen Colltris", 95, 80, &RebuildCollisionTree);
-	
+
 	pageGenesis.AddLine();
 	checkbox_genDisableSceneOccl = pageGenesis.AddControl("BUTTON", "Disable scene occlusion", BS_AUTOCHECKBOX, 7, 160);
-	
+
 	pageGenesis.AddLine();
 	static_genSceneStatus = pageGenesis.AddControl("STATIC", "Scene status", 0, 7, 182);
 	pageGenesis.AddLine();
 	static_genCollisionStatus = pageGenesis.AddControl("STATIC", "Coll status", 0, 7, 182);
-	
 	pageGenesis.AddLine();
 	edit_coordsInX = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 40);
 	edit_coordsInY = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 131, 40);
 	edit_coordsInZ = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 173, 40);
 	edit_coordsInFlag = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 233, 20);
-	
+
 	pageGenesis.AddLine();
 	static_coordsOutHalfwordBlock = pageGenesis.AddControl("STATIC", "Halfword Block:", 0, 7, 80);
 	edit_coordsOutHalfwordBlock = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
-	
+
 	pageGenesis.AddLine();
 	static_coordsOutWordBlock = pageGenesis.AddControl("STATIC", "Word Block:", 0, 7, 80);
 	edit_coordsOutWordBlock = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
-	
+
 	pageGenesis.AddLine();
 	static_coordsOutWord = pageGenesis.AddControl("STATIC", "Word:", 0, 7, 80);
 	edit_coordsOutWord = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 213-87);
-	
+
 	pageGenesis.AddLine();
 	static_sectorSizes = pageGenesis.AddControl("STATIC", "", 0, 7, 300);
 	pageGenesis.AddLine();
@@ -972,12 +1016,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 			// Check if it's a power toggle
 			int pwrId;
-			for (pwrId = 0; pwrId < numPowers; pwrId++) {
+			for (pwrId = 0; pwrId < g_numPowers; pwrId++) {
 				if ((HWND) lParam == buttonPowers[pwrId])
 					break;
 			}
 
-			if (HIWORD(wParam) == BN_CLICKED && pwrId < numPowers)
+			if (HIWORD(wParam) == BN_CLICKED && pwrId < g_numPowers)
 				powers = (powers & ~(1 << pwrId)) | ((SendMessage((HWND) lParam, BM_GETCHECK, 0, 0) == BST_CHECKED) << pwrId);
 		}
 		break;
@@ -1462,6 +1506,15 @@ HWND SpyroEditPage::AddControl(const char* ctrlClass, const char* ctrlText, uint
 	
 	SendMessage(ctrlHwnd, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 	return ctrlHwnd;
+}
+
+HWND SpyroEditPage::AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines) {
+	std::stringstream	sstream;
+
+	sstream << ctrlTextFloat;
+	const std::string	tmp = sstream.str();
+	const char*	ctrlText = tmp.c_str();
+	return AddControl(ctrlClass, ctrlText, ctrlFlags, x, width, heightInLines);
 }
 
 CtrlButton* SpyroEditPage::AddButton(const char* buttonText, int x, int width, void (*onClick)()) {

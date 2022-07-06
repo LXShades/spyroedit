@@ -3,14 +3,13 @@
 #include "SpyroScene.h"
 #include "SpyroGenesis.h"
 #include "SpyroLiveGen.h"
+#include "Powers.h" // headbash settings
 #include "Window.h" // isGenesisPageValid
 
 Scene scene;
-
 extern bool isColltreeValid;
 
 uint32 FindFreeMemory(int sectorSize);
-
 void SetupCollisionLinks(int minSectorIndex = 0, int maxSectorIndex = -1);
 void UpdateCollisionLinks(int sectorId);
 
@@ -703,13 +702,15 @@ void Scene::UploadToGen() {
 void Scene::GenerateCrater(int centreX, int centreY, int centreZ) {
 	if (!scene.spyroScene)
 		return;
-	
-	const float range = 6.0f;
-	const float depth = 0.7f;
-	const float rimHeight = 1.1f;
-	const float rimWidth = 3.0f;
-	const float crushFactor = 1.0f, crushFactorOuter = 0.5f;
-	float fX = (float) (centreX >> 4) * WORLDSCALE, fY = (float) (centreY >> 4) * WORLDSCALE, fZ = (float) (centreZ >> 4) * WORLDSCALE;
+
+	const float	range = headbash_range;
+	const float	depth = headbash_depth;
+	const float	rimHeight = headbash_rimHeight;
+	const float	rimWidth = headbash_rimWidth;
+	const float	crushFactor = headbash_crushFactor, crushFactorOuter = headbash_crushFactorOuter;
+	float	fX = static_cast<float> (centreX >> 4) * WORLDSCALE,
+			fY = static_cast<float> (centreY >> 4) * WORLDSCALE,
+			fZ = static_cast<float> (centreZ >> 4) * WORLDSCALE;
 
 	for (int i = 0; i < scene.spyroScene->numSectors; i++) {
 		GenMesh* genSector = scene.GetGenSector(i);

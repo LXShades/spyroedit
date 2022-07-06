@@ -55,7 +55,7 @@ bool ConnectLiveGen() {
 
 	char ipAddress[20] = {0};
 
-	SendMessageA(edit_genIp, WM_GETTEXT, 20, (LPARAM) ipAddress);
+	SendMessageA(edit_genIp, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(ipAddress));
 	ipAddress[19] = 0;
 
 	if (!live->Connect(LgAddress(ipAddress, 6253))) {
