@@ -1,0 +1,204 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="Source\Main.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Types.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Vram.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ObjectEdit.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Online.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Powers.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroData.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroTextures.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenError.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenFile.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenLive.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenObject.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenState.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenStateTypes.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="GenLib\include\GenType.h">
+      <Filter>GenLib</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Window.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroScene.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroGenesis.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroLiveGen.h">
+      <Filter>Spyro</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdError.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdFile.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdGui.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdMath.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdMenu.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRender.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRenderPrivateTypes.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdRenderResources.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdSystem.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdTypes.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\sdEngine\include\sdWindow.h">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\SpyroRenderer\SpyroRender.h">
+      <Filter>SpyroRender</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="DEF">
+      <UniqueIdentifier>{d745182c-dd2a-44ed-afa4-0c351ccb11c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Main">
+      <UniqueIdentifier>{16b22edf-2413-42d9-a68b-168bd87f653a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Spyro">
+      <UniqueIdentifier>{4c2e007f-a071-4c2b-83c1-d08adde5f03f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GenLib">
+      <UniqueIdentifier>{eb8009b4-00bd-428e-9c1f-1b3006e732a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SpyroRender">
+      <UniqueIdentifier>{aef3e5d0-e5f0-4a3c-861a-a059d7436c13}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SpyroRender\sdEngine">
+      <UniqueIdentifier>{3c36573d-ed6f-475c-b383-568a4078a347}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SpyroRender\Shaders">
+      <UniqueIdentifier>{dc96326f-0042-4c8f-a2d9-d0c4e9a50ccf}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SpyroEdit.def">
+      <Filter>DEF</Filter>
+    </None>
+    <None Include="Source\SpyroRenderer\sdEngine\include\sdMathInline.inl">
+      <Filter>SpyroRender\sdEngine</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\DLLMain.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Main.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Vram.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\ObjectEdit.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Online.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Powers.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroData.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroLiveGen.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroTextures.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Window.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroScene.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroMobyModel.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroMobys.cpp">
+      <Filter>Spyro</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\SpyroRenderer\SpyroRender.cpp">
+      <Filter>SpyroRender</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Source\SpyroRenderer\SuddenDeathEngine.rc">
+      <Filter>SpyroRender</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_All.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_C.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdPS_CT.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_All.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_C.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CN.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CT.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Source\SpyroRenderer\Shaders\sdVS_CTN.hlsl">
+      <Filter>SpyroRender\Shaders</Filter>
+    </FxCompile>
+  </ItemGroup>
+</Project>

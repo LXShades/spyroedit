@@ -1,0 +1,10 @@
+// SUDDENDEATH DEFAULT ----------
+// Vertex shaders
+sdVS_C 256 "./Shaders/sdVS_C.hlsl"
+sdVS_CT 256 "./Shaders/sdVS_CT.hlsl"
+sdVS_CN 256 "./Shaders/sdVS_CN.hlsl"
+sdVS_CTN 256 "./Shaders/sdVS_CTN.hlsl"
+
+// Pixel shaders
+sdPS_C 256 "./Shaders/sdPS_C.hlsl"
+sdPS_CT 256 "./Shaders/sdPS_CT.hlsl"

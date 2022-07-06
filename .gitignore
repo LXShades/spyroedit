@@ -1,0 +1,47 @@
+# Prerequisites
+*.d
+
+# VS files
+.vs
+
+# Intermediate folders
+Debug/
+Release/
+
+# Log files
+*.log
+*.tlog
+
+# Spyro data and research files
+*.ide
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.dll
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app

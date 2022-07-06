@@ -1,0 +1,215 @@
+	// Test: Replace Sunrise Spring Zoe model with tests
+	ModelHeader* model = mobyModels[272];
+
+	if (!model)
+		return;;
+	ModelAnimHeader* anim = model->anims[0];
+	ModelAnimFrameInfo* frame = &anim->frames[0];
+	uint32* spyroVerts = anim->verts, *spyroFaces = anim->faces, *spyroColours = anim->colours;
+	frame->numBlocks = 80; // we'll take as many as we like plz
+	uint16* blocks = &anim->data[frame->blockOffset];
+	uint8* adjusts = (uint8*)&blocks[frame->numBlocks | ((frame->startFlags & 1) << 8)];
+	IntVector vertPositions[80] = {0};
+	IntVector _initialVertPositions[80] = {0};
+	IntVector* initialVertPositions = &_initialVertPositions[1];
+
+#define longblock(x, y, z, bit) *(uint32*)(&blocks[(blockIndex += 2) - 2]) = bitsout(z, 2, 10) | bitsout(y, 12, 10) | bitsout(x, 22, 10) | 2 | (bit&1)
+#define shortblock(x, y, z, bit) blocks[blockIndex++] = bitsout(z, 2, 4) | bitsout(y, 6, 5) | bitsout(x, 11, 5) | (bit&1)
+
+	anim->vertScale = 3;
+	anim->numFrames = 1;
+	frame->startFlags |= 2;
+	spyroFaces[0] = 0;
+
+	uint8 colour;
+	uint8* adjust = adjusts;
+	uint16* block = blocks;
+	uint32* vert = spyroVerts;
+	IntVector pos = {0, 0, 0};
+
+	for (int i = 0; i < anim->numVerts; ++i) {
+		spyroVerts[i] = 0;
+	}
+
+	auto writebase = [&](int32 x, int32 y, int32 z, bool bit) {
+		// Write position
+		*block = 1;
+		*vert = bitsout(x - pos.x, 21, 11) | bitsout(y - pos.y, 10, 11) | bitsout(z - pos.z, 0, 10);
+
+		// Read back position
+		pos = {(int16)x, (int16)y, (int16)z};
+		/*if (!(*block & 1)) {
+			*adjust |= 1;
+			uint32 adjustment = mobyVertAdjustTable[*(adjust++) >> 1];
+			pos.x += bitss(adjustment, 21, 11);
+			pos.y += bitss(adjustment, 10, 11);
+			pos.z += bitss(adjustment, 0, 10);
+		}*/
+
+		vertPositions[vert - spyroVerts] = pos;
+		initialVertPositions[vert - spyroVerts] = pos;
+
+		// Progress
+		vert++;
+		block++;
+	};
+
+	auto writerelative = [&](int32 x, int32 y, int32 z, bool bit) {
+		// Write position
+		*block = bitsout((z - pos.z)/4, 2, 4) | bitsout((y - pos.y)/4, 6, 5) | bitsout((x - pos.x)/4, 11, 5) | (bit>0);
+
+		// Read back position
+		pos = {(int16)pos.x + bitss(*block, 11, 5)*4, (int16)pos.y + bitss(*block, 6, 5)*4, (int16)pos.z + bitss(*block, 2, 4)*4};
+		/*if (!(*block & 1)) {
+			*adjust |= 1;
+			uint32 adjustment = mobyVertAdjustTable[*(adjust++) >> 1];
+			pos.x += bitss(adjustment, 21, 11);
+			pos.y += bitss(adjustment, 10, 11);
+			pos.z += bitss(adjustment, 0, 10);
+		}*/
+
+		vertPositions[vert - spyroVerts] = pos;
+
+		// Progress
+		block++;
+		vert++;
+	};
+
+	auto writeabsolute = [&](int32 x, int32 y, int32 z, bool bit) {
+		// Write position
+		*(uint32*)block = bitsout(-z/2, 2, 10) | bitsout(-y/2, 12, 10) | bitsout(x/2, 22, 10) | 2 | (bit>0);
+		
+		// Read back position
+		pos = {bitss(*(uint32*)block, 22, 10)*2, -bitss(*(uint32*)block, 12, 10)*2, -bitss(*(uint32*)block, 2, 10)*2}; /* for Z, both (2,10)*2 and (1,11) are seemingly equivalent */
+		/*if (!(*block & 1)) {
+			*adjust |= 1;
+			uint32 adjustment = mobyVertAdjustTable[*(adjust++) >> 1];
+			pos.x += bitss(adjustment, 21, 11);
+			pos.y += bitss(adjustment, 10, 11);
+			pos.z += bitss(adjustment, 0, 10);
+		}*/
+
+		vertPositions[vert - spyroVerts] = pos;
+
+		// Progress
+		vert++;
+		block += 2;
+	};
+
+	auto writeface = [&]() {
+		uint8 colour = spyroFaces[0] / 8;
+		int numVerts = vert - spyroVerts;
+		spyroFaces[1+spyroFaces[0] / 4] = ((numVerts - 4) << 8) | (numVerts - 3) | ((numVerts - 2) << 16) | ((numVerts - 1) << 24);
+		//spyroFaces[1+spyroFaces[0] / 4 + 1] = (colour << 10) | (colour << 3) | (colour << 17) | (colour << 24);
+		spyroFaces[1+spyroFaces[0]/4 + 1] = (1 << 3) | (0 << 10) | (2 << 17) | (3 << 24);
+		spyroFaces[0] += 8;
+	};
+	auto duplicate = [&](int offsetX, int offsetY, int offsetZ) {
+		int numFaces = spyroFaces[0] / 8;
+		int numVerts = vert - spyroVerts;
+		for (int i = 0; i < numFaces; ++i) {
+			uint8 v1 = spyroFaces[1+i*2] >> 8, v2 = spyroFaces[1+i*2], v3 = spyroFaces[1+i*2] >> 16, v4 = spyroFaces[1+i*3] >> 24;
+			writeabsolute(vertPositions[v1].x + offsetX, vertPositions[v1].y + offsetY, vertPositions[v1].z + offsetZ, 1);
+			writeabsolute(vertPositions[v2].x + offsetX, vertPositions[v2].y + offsetY, vertPositions[v2].z + offsetZ, 1);
+			writeabsolute(vertPositions[v3].x + offsetX, vertPositions[v3].y + offsetY, vertPositions[v3].z + offsetZ, 1);
+			writeabsolute(vertPositions[v4].x + offsetX, vertPositions[v4].y + offsetY, vertPositions[v4].z + offsetZ, 1);
+			writeface();
+		}
+	};
+	auto duplicateasbase = [&](int offsetX, int offsetY, int offsetZ) {
+		int numFaces = spyroFaces[0] / 8;
+		int numVerts = vert - spyroVerts;
+		writeabsolute(0, 0, 0, true);
+		for (int i = 0; i < numFaces; ++i) {
+			uint8 v1 = spyroFaces[1+i*2] >> 8, v2 = spyroFaces[1+i*2], v3 = spyroFaces[1+i*2] >> 16, v4 = spyroFaces[1+i*3] >> 24;
+			writebase(vertPositions[v1].x + offsetX, vertPositions[v1].y + offsetY, vertPositions[v1].z + offsetZ, 1);
+			writebase(vertPositions[v2].x + offsetX, vertPositions[v2].y + offsetY, vertPositions[v2].z + offsetZ, 1);
+			writebase(vertPositions[v3].x + offsetX, vertPositions[v3].y + offsetY, vertPositions[v3].z + offsetZ, 1);
+			writebase(vertPositions[v4].x + offsetX, vertPositions[v4].y + offsetY, vertPositions[v4].z + offsetZ, 1);
+			writeface();
+		}
+	};
+
+	/*writebase(16, -16, 0, true);
+	writebase(16, -16, 16, true);
+	writebase(16, 16, 16, true);
+	writebase(16, 16, 0, true);
+	writeface();*/
+
+	// In Base Verts: X is positive. Y is positive. Z is positive.
+	// In Absolute Blocks: X is positive. Y is negative. Z is negative.
+	// Reference square (XY)
+	int random[] = {345, 2346, 26, 357, 4567, 45, 347, 24577, 24537, 34574, 48, 3265, 37756, 456734, 245674, 4275, 36, 4467};
+	int curRand = 0;
+	auto getrandom = [&](int min, int max){return min + random[(curRand++)%sizeof(random)/sizeof(random[0])] % (max + 1 - min);};
+	
+	writerelative(16, -16, -16, 1);
+	writerelative(-16, -16, -16, 1);
+	writerelative(-16, 16, -16, 1);
+	writerelative(16, 16, -16, 1);
+	writeface();
+
+	writerelative(16, -16, 0, 1);
+	writerelative(-16, -16, 0, 1);
+	writerelative(-16, 16, 0, 1);
+	writerelative(16, 16, 0, 1);
+	writeface();
+	writerelative(16, -16, 16, 1);
+	writerelative(-16, -16, 16, 1);
+	writerelative(-16, 16, 16, 1);
+	writerelative(16, 16, 16, 1);
+	writeface();
+	writerelative(16, -16, 16, 1);
+	writerelative(-16, -16, 16, 1);
+	writerelative(-16, 16, 16, 1);
+	writerelative(16, 16, 16, 1);
+	writeface();
+
+	/*for (int i = 0; i < 20; ++i) {
+		writerelative(getrandom(0, 4) * 4, getrandom(0, 4) * 4, getrandom(0, 4) * 4, 1);
+	}
+
+	writerelative(-16, 0, 0, 1);
+	writerelative(-16, 0, 16, 1);
+	writerelative(16, 0, 16, 1);
+	writerelative(16, 0, 0, 1);
+	writeface();
+
+	writeabsolute(16, -16, 0, 1);
+	writeabsolute(-16, -16, 0, 1);
+	writeabsolute(-16, 16, 0, 1);
+	writeabsolute(16, 16, 0, 1);
+	writeface();*/
+
+	//duplicateasbase(32, 0, 0);
+
+	/*writeabsolute(-16, 16, 0, 1);
+	writeabsolute(-16, 16, 16, 1);
+	writeabsolute(16, 16, 16, 1);
+	writeabsolute(16, 16, 0, 1);
+	writeface();*/
+
+	/*writeabsolute(16, 0, 0, 1);    // Top right
+	writeabsolute(16, 0, -16, 1);  // Bottom right
+	writeabsolute(-16, 0, -16, 1); // Bottom left
+	writerelative(-16, 0, 0, 1);   // Top left*/
+	;
+	//duplicate(0, 0, 32);
+	
+	/* Interesting notes: 
+		If I make a bunch of relative verts, and I duplicate it as a base, it shifts compared to duplicating it absolutely
+	*/
+
+	spyroVerts[1] = 1;
+	for (int i = 0; i < vert - spyroVerts; ++i) {
+		adjusts[i] = 0x7D;
+	}
+	adjusts[0] = 0x10; // when 0 and 1 are disabled: affects 2
+	adjusts[1] = 0x42; // affects nothing??
+	adjusts[2] = 0x44;
+	adjusts[3] = 0x45;
+
+	spyroColours[0] = 0x000000FF; // AABBGGRR depiction
+	spyroColours[1] = 0x0000FF00;
+	spyroColours[2] = 0x00FF0000;
+	spyroColours[3] = 0x00000000;
