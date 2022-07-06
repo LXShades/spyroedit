@@ -6,8 +6,8 @@
 #include "Powers.h" // headbash settings
 #include "Window.h" // isGenesisPageValid
 
-Scene		scene;
-extern bool	isColltreeValid;
+Scene scene;
+extern bool isColltreeValid;
 
 uint32 FindFreeMemory(int sectorSize);
 void SetupCollisionLinks(int minSectorIndex = 0, int maxSectorIndex = -1);

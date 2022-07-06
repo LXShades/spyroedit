@@ -27,10 +27,10 @@ enum PowerFlag {
 
 void UpdatePowers();
 
-extern uint32	powers;
-extern float	headbash_range;
-extern float	headbash_depth;
-extern float	headbash_rimHeight;
-extern float	headbash_rimWidth;
-extern float	headbash_crushFactor;
-extern float	headbash_crushFactorOuter;
+extern uint32 powers;
+extern float headbash_range;
+extern float headbash_depth;
+extern float headbash_rimHeight;
+extern float headbash_rimWidth;
+extern float headbash_crushFactor;
+extern float headbash_crushFactorOuter;

@@ -258,13 +258,7 @@ void	UpdateHeadbash() {
 	SendMessage(edit_headbash_crushFactorOuter, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(new_headbash_setting));
 	headbash_crushFactorOuter = atof(new_headbash_setting);
 }
-// HWND test_int;
-// void	test() {
-// 	char text[20];
-// 	SendMessage(test_int, WM_GETTEXT, 20, reinterpret_cast<LPARAM>(text));
-// 	MessageBox(NULL, text, "this the text:\n\r\f\r\t\v", MB_OK);
-// }
-// pagePowers.AddButton("button test", 10, 128, &test);
+
 void CreatePowersPage() {
 	const char* powerNames[] = {"Attraction", "Repulsion", "Gem Attraction", "Forcefield (protection)", "Super Headbash", "Ultra Headbash", "Headbashpocalypse", 
 		"Butterfly Breath", "Death Stare", "Death Field", "Repulsion Stare", "Attraction Stare", "Exorcist (S3PAL)", "Tornado", "Telekinesis (S3PAL)", 
@@ -1506,16 +1500,15 @@ void UpdateTextureWindow() {
 	DeleteDC(drawDc);
 }
 
-HWND	SpyroEditPage::AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines) {
-	HWND ctrlHwnd = CreateWindowEx(0, ctrlClass, ctrlText, WS_CHILD | WS_VISIBLE | ctrlFlags,
-								x, line, width, lineHeight * heightInLines, 
+HWND SpyroEditPage::AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines) {
+	HWND ctrlHwnd = CreateWindowEx(0, ctrlClass, ctrlText, WS_CHILD | WS_VISIBLE | ctrlFlags, x, line, width, lineHeight * heightInLines, 
 								hwnd, NULL, mainModule, NULL);
 	
 	SendMessage(ctrlHwnd, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 1);
 	return ctrlHwnd;
 }
 
-HWND	SpyroEditPage::AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines) {
+HWND SpyroEditPage::AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines) {
 	std::stringstream	sstream;
 
 	sstream << ctrlTextFloat;
@@ -1524,19 +1517,19 @@ HWND	SpyroEditPage::AddControl(const char* ctrlClass, float ctrlTextFloat, uint3
 	return AddControl(ctrlClass, ctrlText, ctrlFlags, x, width, heightInLines);
 }
 
-CtrlButton*	SpyroEditPage::AddButton(const char* buttonText, int x, int width, void (*onClick)()) {
+CtrlButton* SpyroEditPage::AddButton(const char* buttonText, int x, int width, void (*onClick)()) {
 	CtrlButton* button = new CtrlButton(AddControl("BUTTON", buttonText, BS_PUSHBUTTON, x, width, 1), onClick);
 	buttons.push_back(button);
 	return button;
 }
 
-CtrlTextbox*	SpyroEditPage::AddTextbox(const char* defaultText, int x, int width) {
+CtrlTextbox* SpyroEditPage::AddTextbox(const char* defaultText, int x, int width) {
 	CtrlTextbox* textbox = new CtrlTextbox(AddControl("EDIT", defaultText, WS_BORDER, x, width, 1));
 	textboxes.push_back(textbox);
 	return textbox;
 }
 
-void	SpyroEditPage::AddLine(uint32 pgFlags, uint32 lineHeight) {
+void SpyroEditPage::AddLine(uint32 pgFlags, uint32 lineHeight) {
 	this->lineHeight = lineHeight;
 
 	line += lineHeight + 3;

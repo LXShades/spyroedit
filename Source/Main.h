@@ -5,7 +5,12 @@
 #define RELEASE 2
 #define VERSION 2
 #define SUBVERSION 3
-#define INFORMATION "uwu?\n"
+#define INFORMATION "What is there to say about me?\n" "Well, I'm made of lots of little ones and zeroes called 'bits'...\n" \
+                    "They uh... they make me do stuff.\n" "LXShadow made the stuff, so don't ask me about it...\n" \
+                    "It's his job to do all the weird mathemalogics. I'm just here to execute it.\n" \
+                    "Stop asking these questions! It's driving me insane!\n" "I'M JUST A PLUGIN. USE ME, AND ASK NO MORE QUESTIONS!\n" \
+                    "Now just click OK and leave me alone!"
+
 #define MEMINT(addr) *(int*) ((unsigned int) memory + (addr))
 #define MEMUINT(addr) *(unsigned int*) ((unsigned int) memory + (addr))
 #define MEMCHAR(addr) *(char*) ((unsigned int) memory + (addr))
@@ -48,5 +53,7 @@ extern bool keyDown[256];
 extern bool keyPressed[256];
 
 void MainLoop();
+
 void UpdateKeys();
+
 int Distance(int srcX, int srcY, int srcZ, int destX, int destY, int destZ);

@@ -6,13 +6,13 @@
 #include <cmath>
 #include <Windows.h>
 
-uint32	powers = 0;
-float	headbash_range = 6.0f;
-float	headbash_depth = 0.7f;
-float	headbash_rimHeight = 1.1f;
-float	headbash_rimWidth = 3.0f;
-float	headbash_crushFactor = 1.0f;
-float	headbash_crushFactorOuter = 0.5f;
+uint32 powers = 0;
+float headbash_range = 6.0f;
+float headbash_depth = 0.7f;
+float headbash_rimHeight = 1.1f;
+float headbash_rimWidth = 3.0f;
+float headbash_crushFactor = 1.0f;
+float headbash_crushFactorOuter = 0.5f;
 
 // void	UpdateHeadbash() {}
 

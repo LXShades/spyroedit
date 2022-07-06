@@ -25,10 +25,10 @@ struct CtrlTextbox {
 struct SpyroEditPage {
 	SpyroEditPage(const char* name_) : name(name_), line(0), lineHeight(22), lineFlags(0), group(0), groupX(0), groupY(0), isActive(false) {};
 	
-	void	AddLine(uint32 pgFlags = 0, uint32 lineHeight = 19);
-	void	AddGroup(const char* groupName);
-	HWND	AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
-	HWND	AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
+	void AddLine(uint32 pgFlags = 0, uint32 lineHeight = 19);
+	void AddGroup(const char* groupName);
+	HWND AddControl(const char* ctrlClass, const char* ctrlText, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
+	HWND AddControl(const char* ctrlClass, float ctrlTextFloat, uint32 ctrlFlags, int x, int width, int heightInLines = 1);
 	CtrlButton* AddButton(const char* buttonText, int x, int width, void (*onClick)() = nullptr);
 	CtrlTextbox* AddTextbox(const char* defaultText, int x, int width);
 
