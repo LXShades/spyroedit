@@ -405,7 +405,6 @@ void CreateStatusPage() {
 	static_memVisualiser = pageStatus.AddControl("STATIC", "", SS_OWNERDRAW, 10, 300);
 	pageStatus.AddLine();
 	static_memStatus = pageStatus.AddControl("STATIC", "<Memory not analysed>", SS_SIMPLE, 10, 300);
-
 	pageStatus.AddLine();
 	pageStatus.AddLine();
 	button_vramViewer = pageStatus.AddControl("BUTTON", "Open VRAM viewer", BS_PUSHBUTTON, 10, 300);
@@ -439,7 +438,6 @@ void CreateGenesisPage() {
 	static_genSceneStatus = pageGenesis.AddControl("STATIC", "Scene status", 0, 7, 182);
 	pageGenesis.AddLine();
 	static_genCollisionStatus = pageGenesis.AddControl("STATIC", "Coll status", 0, 7, 182);
-
 	pageGenesis.AddLine();
 	edit_coordsInX = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 87, 40);
 	edit_coordsInY = pageGenesis.AddControl("EDIT", "0",  WS_BORDER, 131, 40);
